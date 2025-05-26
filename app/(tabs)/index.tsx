@@ -65,6 +65,7 @@ export default function App() {
       setRecording(recording);
     } catch (error) {
       console.error('Failed to start recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
     }
   };
 
@@ -94,6 +95,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
+      Alert.alert('Error', 'Failed to stop recording. Please try again.');
     }
   };
 
@@ -152,7 +154,7 @@ export default function App() {
 
   const sendAudioForTranscription = async (uri: string) => {
     if (isLoading) return;
-    
+
     try {
       setIsLoading(true);
       setIsSending(true);
@@ -167,7 +169,7 @@ export default function App() {
       } as any);
 
       console.log('Sending request to analyze recording...');
-      const response = await fetch('http://10.10.117.2:8000/analyze_sales_call', {
+      const response = await fetch('http://192.168.1.147:8000/analyze_sales_call', {
         method: 'POST',
         body: formData,
         headers: {
@@ -176,24 +178,60 @@ export default function App() {
         },
       });
 
-      console.log('Response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server error:', errorText);
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
+        
+        if (errorText.includes('storage3.exceptions.StorageApiError')) {
+          Alert.alert(
+            'Storage Error',
+            'Failed to upload recording. Please try again.'
+          );
+        } else {
+          throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
+        return;
       }
 
       const data = await response.json();
-      console.log('Received analysis data');
+      console.log('Received response data:', data);
       
-      if (!data.transcription || !data.analysis) {
-        throw new Error('Invalid response format from server');
+      // Check if we have either transcription or analysis
+      if (!data) {
+        throw new Error('Empty response from server');
       }
 
-      setTranscription(data.transcription);
-      setAnalysis(data.analysis);
+      // Set transcription if available
+      if (data.transcription) {
+        setTranscription(data.transcription);
+      } else if (data.text) {
+        // Some APIs return 'text' instead of 'transcription'
+        setTranscription(data.text);
+      }
+
+      // Set analysis if available
+      if (data.analysis) {
+        setAnalysis(data.analysis);
+      } else if (data.summary) {
+        // Some APIs return 'summary' instead of 'analysis'
+        setAnalysis(data.summary);
+      }
+
+      // Get file URL if available
+      const fileUrl = data.file_url || data.fileUrl || data.url || data.audio_url;
+
+      // Update the recording in context with the new data
+      if (!params.recordingUri) {
+        const recordingId = `rec_${Date.now()}`;
+        await updateRecording(recordingId, {
+          fileUrl: fileUrl,
+          transcription: data.transcription || data.text || '',
+          analysis: data.analysis || data.summary || '',
+        });
+      }
     } catch (error) {
       console.error('Error sending audio:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
       Alert.alert(
         'Error',
         'Failed to analyze recording. Please try again.'
@@ -247,8 +285,8 @@ export default function App() {
         )}
 
         {isLoading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#0a7ea4" />
             <Text style={styles.loadingText}>Analyzing recording...</Text>
           </View>
         )}
@@ -267,62 +305,41 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
+    padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
+  },
+  recordingTitle: {
+    fontSize: 16,
+    marginBottom: 10,
   },
   recordButton: {
     flexDirection: 'row',
-    padding: 14,
-    borderRadius: 50,
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    width: 180,
-  },
-  notRecording: {
-    backgroundColor: '#4caf50',
+    padding: 15,
+    borderRadius: 30,
+    marginBottom: 20,
   },
   recording: {
-    backgroundColor: '#f44336',
+    backgroundColor: '#dc3545',
   },
-  playButton: {
-    flexDirection: 'row',
-    backgroundColor: '#2196f3',
-    padding: 12,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    width: 180,
-    alignSelf: 'center',
-  },
-  sendButton: {
-    flexDirection: 'row',
-    backgroundColor: '#673ab7',
-    padding: 12,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 15,
-    width: 180,
-    alignSelf: 'center',
-  },
-  sending: {
-    opacity: 0.7,
+  notRecording: {
+    backgroundColor: '#0a7ea4',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
     marginLeft: 10,
+    fontSize: 16,
   },
   playback: {
     marginTop: 30,
@@ -361,28 +378,47 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: 'left',
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 30,
-  },
-
   scrollArea: {
     maxHeight: 200,
   },
-  recordingTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#673ab7',
-  },
-  loadingContainer: {
+  playButton: {
+    flexDirection: 'row',
+    backgroundColor: '#2196f3',
+    padding: 12,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 20,
+    width: 180,
+    alignSelf: 'center',
+  },
+  sendButton: {
+    flexDirection: 'row',
+    backgroundColor: '#673ab7',
+    padding: 12,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+    width: 180,
+    alignSelf: 'center',
+  },
+  sending: {
+    opacity: 0.7,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#673ab7',
+    color: '#0a7ea4',
   },
 });

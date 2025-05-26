@@ -1,3 +1,4 @@
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useFonts } from 'expo-font';
@@ -8,13 +9,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { RecordingProvider } from './context/RecordingContext';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-export default function RootLayout() {
+function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
 
   useEffect(() => {
     // Configure audio mode for playback
@@ -25,22 +21,31 @@ export default function RootLayout() {
     });
   }, []);
 
+  return (
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <RecordingProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </RecordingProvider>
+    </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  const [loaded] = useFonts({
+    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+  });
+
   if (!loaded) {
-    // Async font loading only occurs in development.
     return null;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <RecordingProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </RecordingProvider>
-      </ThemeProvider>
+      <RootLayoutNav />
     </GestureHandlerRootView>
   );
 }

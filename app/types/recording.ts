@@ -3,8 +3,10 @@ export interface Recording {
   uri: string;
   duration: number;
   timestamp: number;
-  summary?: string;
   title: string;
+  fileUrl?: string;
+  transcription?: string;
+  analysis?: string;
 }
 
 export interface RecordingContextType {
