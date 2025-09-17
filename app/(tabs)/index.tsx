@@ -169,7 +169,7 @@ export default function App() {
       } as any);
 
       console.log('Sending request to analyze recording...');
-      const response = await fetch('http://192.168.1.147:8000/analyze_sales_call', {
+      const response = await fetch('http://10.34.100.193:8000/analyze_sales_call', {
         method: 'POST',
         body: formData,
         headers: {
