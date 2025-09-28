@@ -8,6 +8,7 @@ module.exports = {
     scheme: 'savantsalesai',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
+    jsEngine: 'hermes',
     ios: {
       supportsTablet: true,
     },

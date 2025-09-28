@@ -1,9 +1,19 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
-import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRecordings } from '../context/RecordingContext';
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useRecordings } from "../context/RecordingContext";
+import { supabase } from "../lib/supabaseClient";
 
 export default function App() {
   const params = useLocalSearchParams();
@@ -15,8 +25,34 @@ export default function App() {
   const [isSending, setIsSending] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<string | null>(null);
-  const [currentRecordingTitle, setCurrentRecordingTitle] = useState<string | null>(null);
+  const [currentRecordingTitle, setCurrentRecordingTitle] = useState<
+    string | null
+  >(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // profile overlay state
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setUserEmail(data.user.email ?? "User");
+        setUserName(data.user.user_metadata.username ?? "");
+      }
+    };
+    loadUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      loadUser();
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (params.recordingUri) {
@@ -37,8 +73,8 @@ export default function App() {
   const startRecording = async () => {
     try {
       const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission to access microphone is required!');
+      if (permission.status !== "granted") {
+        Alert.alert("Permission to access microphone is required!");
         return;
       }
 
@@ -64,8 +100,8 @@ export default function App() {
 
       setRecording(recording);
     } catch (error) {
-      console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start recording. Please try again.');
+      console.error("Failed to start recording:", error);
+      Alert.alert("Error", "Failed to start recording. Please try again.");
     }
   };
 
@@ -94,8 +130,8 @@ export default function App() {
         });
       }
     } catch (error) {
-      console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to stop recording. Please try again.');
+      console.error("Failed to stop recording:", error);
+      Alert.alert("Error", "Failed to stop recording. Please try again.");
     }
   };
 
@@ -135,7 +171,7 @@ export default function App() {
         await newSound.playAsync();
         setIsPlaying(true);
       } catch (error) {
-        console.error('Playback failed:', error);
+        console.error("Playback failed:", error);
         setIsPlaying(false);
       }
     } else {
@@ -162,30 +198,33 @@ export default function App() {
       setAnalysis(null);
 
       const formData = new FormData();
-      formData.append('file', {
+      formData.append("file", {
         uri: uri,
-        type: 'audio/x-m4a',
-        name: 'recording.m4a',
+        type: "audio/x-m4a",
+        name: "recording.m4a",
       } as any);
 
-      console.log('Sending request to analyze recording...');
-      const response = await fetch('http://10.34.100.193:8000/analyze_sales_call', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      console.log("Sending request to analyze recording...");
+      const response = await fetch(
+        "http://10.34.100.193:8000/analyze_sales_call",
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Server error:', errorText);
-        
-        if (errorText.includes('storage3.exceptions.StorageApiError')) {
+        console.error("Server error:", errorText);
+
+        if (errorText.includes("storage3.exceptions.StorageApiError")) {
           Alert.alert(
-            'Storage Error',
-            'Failed to upload recording. Please try again.'
+            "Storage Error",
+            "Failed to upload recording. Please try again."
           );
         } else {
           throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -194,75 +233,99 @@ export default function App() {
       }
 
       const data = await response.json();
-      console.log('Received response data:', data);
-      
-      // Check if we have either transcription or analysis
+      console.log("Received response data:", data);
+
       if (!data) {
-        throw new Error('Empty response from server');
+        throw new Error("Empty response from server");
       }
 
-      // Set transcription if available
       if (data.transcription) {
         setTranscription(data.transcription);
       } else if (data.text) {
-        // Some APIs return 'text' instead of 'transcription'
         setTranscription(data.text);
       }
 
-      // Set analysis if available
       if (data.analysis) {
         setAnalysis(data.analysis);
       } else if (data.summary) {
-        // Some APIs return 'summary' instead of 'analysis'
         setAnalysis(data.summary);
       }
 
-      // Get file URL if available
-      const fileUrl = data.file_url || data.fileUrl || data.url || data.audio_url;
+      const fileUrl =
+        data.file_url || data.fileUrl || data.url || data.audio_url;
 
-      // Update the recording in context with the new data
       if (!params.recordingUri) {
         const recordingId = `rec_${Date.now()}`;
         await updateRecording(recordingId, {
           fileUrl: fileUrl,
-          transcription: data.transcription || data.text || '',
-          analysis: data.analysis || data.summary || '',
+          transcription: data.transcription || data.text || "",
+          analysis: data.analysis || data.summary || "",
         });
       }
     } catch (error) {
-      console.error('Error sending audio:', error);
-      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
-      Alert.alert(
-        'Error',
-        'Failed to analyze recording. Please try again.'
+      console.error("Error sending audio:", error);
+      console.error(
+        "Error details:",
+        error instanceof Error ? error.message : "Unknown error"
       );
+      Alert.alert("Error", "Failed to analyze recording. Please try again.");
     } finally {
       setIsLoading(false);
       setIsSending(false);
     }
   };
 
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert("Logout failed", error.message);
+      return;
+    }
+    router.replace("/login");
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
+        {/* Profile icon */}
+        <Pressable
+          style={styles.profileIcon}
+          onPress={() => setShowOverlay(true)}
+        >
+          <Ionicons name="person-circle" size={36} color="#0a7ea4" />
+        </Pressable>
+
         <Text style={styles.title}>Savant Sales AI</Text>
         {currentRecordingTitle && (
           <Text style={styles.recordingTitle}>{currentRecordingTitle}</Text>
         )}
 
         <Pressable
-          style={[styles.recordButton, recording ? styles.recording : styles.notRecording]}
+          style={[
+            styles.recordButton,
+            recording ? styles.recording : styles.notRecording,
+          ]}
           onPress={recording ? stopRecording : startRecording}
         >
-          <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
-          <Text style={styles.buttonText}>{recording ? 'Stop' : 'Record'}</Text>
+          <MaterialIcons
+            name={recording ? "stop" : "fiber-manual-record"}
+            size={28}
+            color="#fff"
+          />
+          <Text style={styles.buttonText}>{recording ? "Stop" : "Record"}</Text>
         </Pressable>
 
         {recordedURI && (
           <View style={styles.playback}>
             <Pressable style={styles.playButton} onPress={playPauseRecording}>
-              <MaterialIcons name={isPlaying ? 'pause' : 'play-arrow'} size={30} color="#fff" />
-              <Text style={styles.buttonText}>{isPlaying ? 'Playing...' : 'Play'}</Text>
+              <MaterialIcons
+                name={isPlaying ? "pause" : "play-arrow"}
+                size={30}
+                color="#fff"
+              />
+              <Text style={styles.buttonText}>
+                {isPlaying ? "Playing..." : "Play"}
+              </Text>
             </Pressable>
 
             {!params.recordingUri && (
@@ -300,6 +363,45 @@ export default function App() {
           </View>
         )}
       </View>
+
+      {/* Overlay */}
+      <Modal visible={showOverlay} animationType="slide" transparent>
+        <View style={styles.overlay}>
+          {/* Close button */}
+          <Pressable
+            style={styles.closeButton}
+            onPress={() => setShowOverlay(false)}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </Pressable>
+
+          {/* Greeting */}
+          <View style={styles.header}>
+            <Text style={styles.greetingText}>
+              Hi <Text style={styles.username}>{userName || userEmail}</Text>
+            </Text>
+          </View>
+
+          {/* View Profile */}
+          <Pressable
+            style={[styles.menuButton, styles.viewProfile]}
+            onPress={() => {
+              setShowOverlay(false);
+              router.push("/profile");
+            }}
+          >
+            <Text style={styles.menuButtonText}>View Profile</Text>
+          </Pressable>
+
+          {/* Sign Out */}
+          <Pressable
+            style={[styles.menuButton, styles.signOut]}
+            onPress={handleLogout}
+          >
+            <Text style={styles.menuButtonText}>Sign Out</Text>
+          </Pressable>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -310,13 +412,16 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 20,
+  },
+  header: {
+    marginBottom: 40,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 20,
   },
   recordingTitle: {
@@ -324,101 +429,155 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   recordButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 15,
     borderRadius: 30,
     marginBottom: 20,
   },
   recording: {
-    backgroundColor: '#dc3545',
+    backgroundColor: "#dc3545",
   },
   notRecording: {
-    backgroundColor: '#0a7ea4',
+    backgroundColor: "#0a7ea4",
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     marginLeft: 10,
     fontSize: 16,
   },
   playback: {
     marginTop: 30,
-    alignItems: 'center',
+    alignItems: "center",
   },
   transcriptionCard: {
     marginTop: 40,
-    backgroundColor: '#f0f4ff',
+    backgroundColor: "#f0f4ff",
     padding: 20,
     borderRadius: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
     borderWidth: 1,
-    borderColor: '#c0c7ff',
+    borderColor: "#c0c7ff",
   },
   transcriptionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
-    color: '#3b4cca',
-    textAlign: 'center',
+    color: "#3b4cca",
+    textAlign: "center",
   },
   summaryTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
-    color: '#009688',
-    textAlign: 'center',
+    color: "#009688",
+    textAlign: "center",
   },
   transcriptionText: {
     fontSize: 16,
-    color: '#333',
+    color: "#333",
     lineHeight: 24,
-    textAlign: 'left',
+    textAlign: "left",
   },
   scrollArea: {
     maxHeight: 200,
   },
   playButton: {
-    flexDirection: 'row',
-    backgroundColor: '#2196f3',
+    flexDirection: "row",
+    backgroundColor: "#2196f3",
     padding: 12,
     borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 20,
     width: 180,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   sendButton: {
-    flexDirection: 'row',
-    backgroundColor: '#673ab7',
+    flexDirection: "row",
+    backgroundColor: "#673ab7",
     padding: 12,
     borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 15,
     width: 180,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   sending: {
     opacity: 0.7,
   },
   loadingOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#0a7ea4',
+    color: "#0a7ea4",
+  },
+  profileIcon: {
+    position: "absolute",
+    top: 40,
+    left: 20,
+    zIndex: 10,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "#1c1c1c",
+    paddingTop: 100,
+    paddingHorizontal: 20,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 30,
+  },
+  menuButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    alignSelf: "center", // centers the button
+    minWidth: 180, // keeps consistent width
+  },
+  menuButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  greetingText: {
+    fontSize: 22,
+    color: "#ddd",
+    fontWeight: "400",
+  },
+  username: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  viewProfile: {
+    backgroundColor: "#0a7ea4",
+  },
+  signOut: {
+    backgroundColor: "#dc3545",
   },
 });
