@@ -1,18 +1,67 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
- 
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useRecordings } from "../context/RecordingContext";
+import { supabase } from "../lib/supabaseClient";
+
 export default function App() {
+  const params = useLocalSearchParams();
+  const { updateRecording, addRecording } = useRecordings();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordedURI, setRecordedURI] = useState<string | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<string | null>(null); // New state
- 
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [currentRecordingTitle, setCurrentRecordingTitle] = useState<
+    string | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // profile overlay state
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setUserEmail(data.user.email ?? "User");
+        setUserName(data.user.user_metadata.username ?? "");
+      }
+    };
+    loadUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      loadUser();
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (params.recordingUri) {
+      setRecordedURI(params.recordingUri as string);
+      setCurrentRecordingTitle(params.recordingTitle as string);
+      sendAudioForTranscription(params.recordingUri as string);
+    }
+  }, [params.recordingUri, params.recordingTitle]);
+
   useEffect(() => {
     return () => {
       if (sound) {
@@ -20,49 +69,76 @@ export default function App() {
       }
     };
   }, [sound]);
- 
+
   const startRecording = async () => {
     try {
       const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission to access microphone is required!');
+      if (permission.status !== "granted") {
+        Alert.alert("Permission to access microphone is required!");
         return;
       }
- 
+
+      // Clear previous recording states
+      setCurrentRecordingTitle(null);
+      setTranscription(null);
+      setAnalysis(null);
+      setRecordedURI(null);
+      if (sound) {
+        await sound.unloadAsync();
+        setSound(null);
+      }
+      setIsPlaying(false);
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
- 
+
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
- 
+
       setRecording(recording);
-      setTranscription(null);
-      setAnalysis(null); // Clear previous analysis
     } catch (error) {
-      console.error('Failed to start recording:', error);
+      console.error("Failed to start recording:", error);
+      Alert.alert("Error", "Failed to start recording. Please try again.");
     }
   };
- 
+
   const stopRecording = async () => {
     try {
       if (!recording) return;
- 
+
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       setRecordedURI(uri ?? null);
       setRecording(null);
+
+      // Get recording duration
+      const status = await recording.getStatusAsync();
+      const duration = status.durationMillis ? status.durationMillis / 1000 : 0;
+
+      // Save recording to storage
+      if (uri) {
+        const recordingId = `rec_${Date.now()}`;
+        await addRecording({
+          id: recordingId,
+          uri,
+          duration,
+          timestamp: Date.now(),
+          title: `Recording ${new Date().toLocaleString()}`,
+        });
+      }
     } catch (error) {
-      console.error('Failed to stop recording:', error);
+      console.error("Failed to stop recording:", error);
+      Alert.alert("Error", "Failed to stop recording. Please try again.");
     }
   };
- 
+
   const playPauseRecording = async () => {
     if (!sound) {
       if (!recordedURI) return;
- 
+
       try {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -73,35 +149,35 @@ export default function App() {
           interruptionModeAndroid: 1,
           interruptionModeIOS: 1,
         });
- 
+
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: recordedURI },
           { shouldPlay: false }
         );
- 
+
         setSound(newSound);
- 
+
         newSound.setOnPlaybackStatusUpdate((status) => {
           if (!status.isLoaded) return;
           setIsPlaying(status.isPlaying);
- 
+
           if (status.didJustFinish) {
             newSound.unloadAsync();
             setSound(null);
             setIsPlaying(false);
           }
         });
- 
+
         await newSound.playAsync();
         setIsPlaying(true);
       } catch (error) {
-        console.error('Playback failed:', error);
+        console.error("Playback failed:", error);
         setIsPlaying(false);
       }
     } else {
       const status = await sound.getStatusAsync();
       if (!status.isLoaded) return;
- 
+
       if (status.isPlaying) {
         await sound.pauseAsync();
         setIsPlaying(false);
@@ -111,212 +187,397 @@ export default function App() {
       }
     }
   };
- 
-  const sendAudioForTranscription = async () => {
-    if (!recordedURI) return;
- 
+
+  const sendAudioForTranscription = async (uri: string) => {
+    if (isLoading) return;
+
     try {
+      setIsLoading(true);
       setIsSending(true);
       setTranscription(null);
       setAnalysis(null);
- 
-      const fileInfo = await FileSystem.getInfoAsync(recordedURI);
-      if (!fileInfo.exists) throw new Error("File does not exist");
- 
+
       const formData = new FormData();
-      formData.append('file', {
-        uri: recordedURI,
-        name: 'recording.m4a',
-        type: 'audio/x-m4a',
+      formData.append("file", {
+        uri: uri,
+        type: "audio/x-m4a",
+        name: "recording.m4a",
       } as any);
- 
-      const backendURL = 'http://10.10.117.3:8000/analyze_sales_call';
- 
-      const res = await fetch(backendURL, {
-        method: 'POST',
-        body: formData,
-      });
- 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Server error: ${res.status} - ${errText}`);
-      }
- 
-      const data = await res.json();
-      setTranscription(data.transcription);
-      setAnalysis(data.analysis); // Set coaching summary
-    } catch (error: any) {
-      console.log(JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      Alert.alert(
-        'Error Sending Audio',
-        error.message || 'Unknown error occurred. See logs for more info.'
+
+      console.log("Sending request to analyze recording...");
+      const response = await fetch(
+        "http://10.34.100.193:8000/analyze_sales_call",
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "multipart/form-data",
+          },
+        }
       );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Server error:", errorText);
+
+        if (errorText.includes("storage3.exceptions.StorageApiError")) {
+          Alert.alert(
+            "Storage Error",
+            "Failed to upload recording. Please try again."
+          );
+        } else {
+          throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
+        return;
+      }
+
+      const data = await response.json();
+      console.log("Received response data:", data);
+
+      if (!data) {
+        throw new Error("Empty response from server");
+      }
+
+      if (data.transcription) {
+        setTranscription(data.transcription);
+      } else if (data.text) {
+        setTranscription(data.text);
+      }
+
+      if (data.analysis) {
+        setAnalysis(data.analysis);
+      } else if (data.summary) {
+        setAnalysis(data.summary);
+      }
+
+      const fileUrl =
+        data.file_url || data.fileUrl || data.url || data.audio_url;
+
+      if (!params.recordingUri) {
+        const recordingId = `rec_${Date.now()}`;
+        await updateRecording(recordingId, {
+          fileUrl: fileUrl,
+          transcription: data.transcription || data.text || "",
+          analysis: data.analysis || data.summary || "",
+        });
+      }
+    } catch (error) {
+      console.error("Error sending audio:", error);
+      console.error(
+        "Error details:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+      Alert.alert("Error", "Failed to analyze recording. Please try again.");
     } finally {
+      setIsLoading(false);
       setIsSending(false);
     }
   };
- 
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert("Logout failed", error.message);
+      return;
+    }
+    router.replace("/login");
+  };
+
   return (
-  <ScrollView contentContainerStyle={styles.scrollContainer}>
-    <View style={styles.container}>
-      <Text style={styles.title}>Savant Sales AI</Text>
- 
-      <Pressable
-        style={[styles.recordButton, recording ? styles.recording : styles.notRecording]}
-        onPress={recording ? stopRecording : startRecording}
-      >
-        <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
-        <Text style={styles.buttonText}>{recording ? 'Stop' : 'Record'}</Text>
-      </Pressable>
- 
-      {recordedURI && (
-        <View style={styles.playback}>
-          <Pressable style={styles.playButton} onPress={playPauseRecording}>
-            <MaterialIcons name={isPlaying ? 'pause' : 'play-arrow'} size={30} color="#fff" />
-            <Text style={styles.buttonText}>{isPlaying ? 'Playing...' : 'Play'}</Text>
-          </Pressable>
- 
-          <Pressable
-            style={[styles.sendButton, isSending ? styles.sending : null]}
-            onPress={sendAudioForTranscription}
-            disabled={isSending}
-          >
-            {isSending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <MaterialIcons name="send" size={24} color="#fff" />
-                <Text style={styles.buttonText}>Send</Text>
-              </>
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <View style={styles.container}>
+        {/* Profile icon */}
+        <Pressable
+          style={styles.profileIcon}
+          onPress={() => setShowOverlay(true)}
+        >
+          <Ionicons name="person-circle" size={36} color="#0a7ea4" />
+        </Pressable>
+
+        <Text style={styles.title}>Savant Sales AI</Text>
+        {currentRecordingTitle && (
+          <Text style={styles.recordingTitle}>{currentRecordingTitle}</Text>
+        )}
+
+        <Pressable
+          style={[
+            styles.recordButton,
+            recording ? styles.recording : styles.notRecording,
+          ]}
+          onPress={recording ? stopRecording : startRecording}
+        >
+          <MaterialIcons
+            name={recording ? "stop" : "fiber-manual-record"}
+            size={28}
+            color="#fff"
+          />
+          <Text style={styles.buttonText}>{recording ? "Stop" : "Record"}</Text>
+        </Pressable>
+
+        {recordedURI && (
+          <View style={styles.playback}>
+            <Pressable style={styles.playButton} onPress={playPauseRecording}>
+              <MaterialIcons
+                name={isPlaying ? "pause" : "play-arrow"}
+                size={30}
+                color="#fff"
+              />
+              <Text style={styles.buttonText}>
+                {isPlaying ? "Playing..." : "Play"}
+              </Text>
+            </Pressable>
+
+            {!params.recordingUri && (
+              <Pressable
+                style={[styles.sendButton, isSending ? styles.sending : null]}
+                onPress={() => sendAudioForTranscription(recordedURI)}
+                disabled={isSending}
+              >
+                {isSending ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="send" size={24} color="#fff" />
+                    <Text style={styles.buttonText}>Send</Text>
+                  </>
+                )}
+              </Pressable>
             )}
+          </View>
+        )}
+
+        {isLoading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#0a7ea4" />
+            <Text style={styles.loadingText}>Analyzing recording...</Text>
+          </View>
+        )}
+
+        {analysis && (
+          <View style={styles.transcriptionCard}>
+            <Text style={styles.summaryTitle}>Summary and Tips</Text>
+            <ScrollView style={styles.scrollArea}>
+              <Text style={styles.transcriptionText}>{analysis}</Text>
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
+      {/* Overlay */}
+      <Modal visible={showOverlay} animationType="slide" transparent>
+        <View style={styles.overlay}>
+          {/* Close button */}
+          <Pressable
+            style={styles.closeButton}
+            onPress={() => setShowOverlay(false)}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </Pressable>
+
+          {/* Greeting */}
+          <View style={styles.header}>
+            <Text style={styles.greetingText}>
+              Hi <Text style={styles.username}>{userName || userEmail}</Text>
+            </Text>
+          </View>
+
+          {/* View Profile */}
+          <Pressable
+            style={[styles.menuButton, styles.viewProfile]}
+            onPress={() => {
+              setShowOverlay(false);
+              router.push("/profile");
+            }}
+          >
+            <Text style={styles.menuButtonText}>View Profile</Text>
+          </Pressable>
+
+          {/* Sign Out */}
+          <Pressable
+            style={[styles.menuButton, styles.signOut]}
+            onPress={handleLogout}
+          >
+            <Text style={styles.menuButtonText}>Sign Out</Text>
           </Pressable>
         </View>
-      )}
- 
-      {/* {transcription && (
-        <View style={styles.transcriptionCard}>
-          <Text style={styles.transcriptionTitle}>Transcription</Text>
-          <ScrollView style={styles.scrollArea}>
-            <Text style={styles.transcriptionText}>{transcription}</Text>
-          </ScrollView>
-        </View>
-      )} */}
- 
-      {analysis && (
-        <View style={styles.transcriptionCard}>
-          <Text style={styles.summaryTitle}>Summary and Tips</Text>
-          <ScrollView style={styles.scrollArea}>
-            <Text style={styles.transcriptionText}>{analysis}</Text>
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  </ScrollView>
-);
- 
+      </Modal>
+    </ScrollView>
+  );
 }
- 
+
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  header: {
+    marginBottom: 40,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 40,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  recordingTitle: {
+    fontSize: 16,
+    marginBottom: 10,
   },
   recordButton: {
-    flexDirection: 'row',
-    padding: 14,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    width: 180,
-  },
-  notRecording: {
-    backgroundColor: '#4caf50',
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+    borderRadius: 30,
+    marginBottom: 20,
   },
   recording: {
-    backgroundColor: '#f44336',
+    backgroundColor: "#dc3545",
   },
-  playButton: {
-    flexDirection: 'row',
-    backgroundColor: '#2196f3',
-    padding: 12,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    width: 180,
-    alignSelf: 'center',
-  },
-  sendButton: {
-    flexDirection: 'row',
-    backgroundColor: '#673ab7',
-    padding: 12,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 15,
-    width: 180,
-    alignSelf: 'center',
-  },
-  sending: {
-    opacity: 0.7,
+  notRecording: {
+    backgroundColor: "#0a7ea4",
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: "#fff",
     marginLeft: 10,
+    fontSize: 16,
   },
   playback: {
     marginTop: 30,
-    alignItems: 'center',
+    alignItems: "center",
   },
   transcriptionCard: {
     marginTop: 40,
-    backgroundColor: '#f0f4ff',
+    backgroundColor: "#f0f4ff",
     padding: 20,
     borderRadius: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
     borderWidth: 1,
-    borderColor: '#c0c7ff',
+    borderColor: "#c0c7ff",
   },
   transcriptionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
-    color: '#3b4cca',
-    textAlign: 'center',
+    color: "#3b4cca",
+    textAlign: "center",
   },
   summaryTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
-    color: '#009688',
-    textAlign: 'center',
+    color: "#009688",
+    textAlign: "center",
   },
   transcriptionText: {
     fontSize: 16,
-    color: '#333',
+    color: "#333",
     lineHeight: 24,
-    textAlign: 'left',
+    textAlign: "left",
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 30,
-  },
- 
   scrollArea: {
     maxHeight: 200,
+  },
+  playButton: {
+    flexDirection: "row",
+    backgroundColor: "#2196f3",
+    padding: 12,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+    width: 180,
+    alignSelf: "center",
+  },
+  sendButton: {
+    flexDirection: "row",
+    backgroundColor: "#673ab7",
+    padding: 12,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 15,
+    width: 180,
+    alignSelf: "center",
+  },
+  sending: {
+    opacity: 0.7,
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#0a7ea4",
+  },
+  profileIcon: {
+    position: "absolute",
+    top: 40,
+    left: 20,
+    zIndex: 10,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "#1c1c1c",
+    paddingTop: 100,
+    paddingHorizontal: 20,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 30,
+  },
+  menuButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    alignSelf: "center", // centers the button
+    minWidth: 180, // keeps consistent width
+  },
+  menuButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  greetingText: {
+    fontSize: 22,
+    color: "#ddd",
+    fontWeight: "400",
+  },
+  username: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  viewProfile: {
+    backgroundColor: "#0a7ea4",
+  },
+  signOut: {
+    backgroundColor: "#dc3545",
   },
 });
