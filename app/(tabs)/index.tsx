@@ -5,6 +5,63 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRecordings } from '../context/RecordingContext';
 
+// Academic helper functions
+const formatAcademicRecommendations = (data: any): string => {
+  if (!data.recommendations) {
+    return data.analysis || data.summary || 'No recommendations available.';
+  }
+
+  const { recommendations } = data;
+  // If the server returns a single string for recommendations, return it directly
+  if (typeof recommendations === 'string') {
+    return recommendations;
+  }
+  let formattedText = '🎓 **Your Academic Path Recommendations**\n\n';
+
+  // Format majors
+  if (recommendations.majors && recommendations.majors.length > 0) {
+    formattedText += '**🎯 Recommended Majors:**\n\n';
+    recommendations.majors.forEach((major: any, index: number) => {
+      formattedText += `${index + 1}. **${major.name}**\n`;
+      if (major.description) {
+        formattedText += `   ${major.description}\n`;
+      }
+      if (major.career_paths && major.career_paths.length > 0) {
+        formattedText += `   🚀 **Career Paths:** ${major.career_paths.join(', ')}\n`;
+      }
+      formattedText += '\n';
+    });
+  }
+
+  // Format minors
+  if (recommendations.minors && recommendations.minors.length > 0) {
+    formattedText += '\n**📚 Suggested Minors:**\n';
+    recommendations.minors.forEach((minor: any, index: number) => {
+      formattedText += `${index + 1}. ${minor.name}\n`;
+    });
+    formattedText += '\n';
+  }
+
+  // Format career guidance
+  if (recommendations.career_guidance) {
+    formattedText += '\n**💡 Career Guidance:**\n';
+    formattedText += recommendations.career_guidance + '\n\n';
+  }
+
+  return formattedText;
+};
+
+const isValidAcademicResponse = (data: any): boolean => {
+  return (
+    data &&
+    (data.recommendations ||
+      data.analysis ||
+      data.summary ||
+      data.transcription ||
+      data.text)
+  );
+};
+
 export default function App() {
   const params = useLocalSearchParams();
   const { updateRecording, addRecording } = useRecordings();
@@ -169,23 +226,108 @@ export default function App() {
       } as any);
 
       console.log('Sending request to analyze recording...');
-      const response = await fetch('http://192.168.1.157:8000/analyze_sales_call', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      
+      // First, test if server is reachable at all
+      try {
+        const healthCheck = await fetch('http://10.34.102.133:8000/', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        });
+        console.log(`Server health check: ${healthCheck.status}`);
+      } catch (error) {
+        console.log('Server health check failed:', error);
+        Alert.alert(
+          'Server Not Reachable',
+          `Cannot connect to server at http://10.34.102.133:8000\n\nPlease check:\n1. Server is running\n2. IP address is correct\n3. Network connection`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Try different common endpoints (prioritizing new academic endpoints)
+      const endpointsToTry = [
+        'http://10.34.102.133:8000/explore_majors',
+        'http://10.34.102.133:8000/analyze_sales_call', // Legacy support
+        'http://10.34.102.133:8000/analyze',
+        'http://10.34.102.133:8000/transcribe',
+        'http://10.34.102.133:8000/api/explore_majors',
+        'http://10.34.102.133:8000/api/analyze',
+        'http://10.34.102.133:8000/v1/explore_majors',
+      ];
+      
+      let response: Response | null = null;
+      let workingEndpoint = '';
+      
+      for (const endpoint of endpointsToTry) {
+        try {
+          console.log(`Trying endpoint: ${endpoint}`);
+          response = await fetch(endpoint, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          
+          if (response.ok) {
+            console.log(`✅ Success with endpoint: ${endpoint}`);
+            workingEndpoint = endpoint;
+            // Show success message for academic endpoint
+            if (endpoint.includes('explore_majors')) {
+              console.log('🎓 Using new academic majors exploration endpoint!');
+            }
+            break;
+          } else if (response.status === 404) {
+            console.log(`❌ 404 for endpoint: ${endpoint}`);
+            continue;
+          } else {
+            console.log(`⚠️ ${response.status} for endpoint: ${endpoint}`);
+            workingEndpoint = endpoint;
+            break; // Try this one even if not 200, might be a different error
+          }
+        } catch (error) {
+          console.log(`❌ Error with endpoint ${endpoint}:`, error);
+          continue;
+        }
+      }
+      
+      if (!response) {
+        Alert.alert(
+          'No Working Endpoint Found',
+          `Tried multiple endpoints but none worked:\n\n${endpointsToTry.join('\n')}\n\nPlease check:\n1. Server is running\n2. Correct endpoint name\n3. Server accepts POST requests`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server error:', errorText);
         
-        if (errorText.includes('storage3.exceptions.StorageApiError')) {
+        if (errorText.includes('storage3.exceptions.StorageApiError') || errorText.includes('Bucket not found')) {
           Alert.alert(
-            'Storage Error',
-            'Failed to upload recording. Please try again.'
+            'Storage Configuration Error',
+            'The server cannot save the recording because the storage bucket is not configured properly.\n\nError: Supabase bucket "academic-audio-files" not found.\n\nPlease check your server configuration.',
+            [{ text: 'OK' }]
+          );
+        } else if (errorText.includes('Error retrieving context')) {
+          Alert.alert(
+            'AI Context Error',
+            'The AI assistant is having trouble accessing its knowledge base.\n\nError: Context retrieval failed\n\nThis might be a temporary issue. Please try again in a few moments.',
+            [
+              { text: 'OK', style: 'default' },
+              { text: 'Retry', style: 'default', onPress: () => sendAudioForTranscription(uri) }
+            ]
+          );
+        } else if (response.status === 500) {
+          Alert.alert(
+            'Server Processing Error',
+            `The server encountered an error while processing your request.\n\nError: ${errorText}\n\nThis might be a temporary issue. Please try again.`,
+            [
+              { text: 'OK', style: 'default' },
+              { text: 'Retry', style: 'default', onPress: () => sendAudioForTranscription(uri) }
+            ]
           );
         } else {
           throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -201,20 +343,17 @@ export default function App() {
         throw new Error('Empty response from server');
       }
 
+      // Handle academic response format
+      if (isValidAcademicResponse(data)) {
+        const formattedRecommendations = formatAcademicRecommendations(data);
+        setAnalysis(formattedRecommendations);
+      }
+
       // Set transcription if available
       if (data.transcription) {
         setTranscription(data.transcription);
       } else if (data.text) {
-        // Some APIs return 'text' instead of 'transcription'
         setTranscription(data.text);
-      }
-
-      // Set analysis if available
-      if (data.analysis) {
-        setAnalysis(data.analysis);
-      } else if (data.summary) {
-        // Some APIs return 'summary' instead of 'analysis'
-        setAnalysis(data.summary);
       }
 
       // Get file URL if available
@@ -245,7 +384,10 @@ export default function App() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
-        <Text style={styles.title}>AI Assistant for Sales</Text>
+        <Text style={styles.title}>🎓 Majors Exploration Assistant</Text>
+        <Text style={styles.subtitle}>
+          Share your interests, goals, and aspirations to discover your ideal academic path
+        </Text>
         {currentRecordingTitle && (
           <Text style={styles.recordingTitle}>{currentRecordingTitle}</Text>
         )}
@@ -255,8 +397,15 @@ export default function App() {
           onPress={recording ? stopRecording : startRecording}
         >
           <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
-          <Text style={styles.buttonText}>{recording ? 'Stop' : 'Record'}</Text>
+          <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Exploring'}</Text>
         </Pressable>
+
+        <Text style={styles.promptText}>
+          {recording 
+            ? "🎤 Tell us about your interests, career goals, and what subjects you enjoy..." 
+            : "Tap the button above to start exploring your academic path!"
+          }
+        </Text>
 
         {recordedURI && (
           <View style={styles.playback}>
@@ -276,7 +425,7 @@ export default function App() {
                 ) : (
                   <>
                     <MaterialIcons name="send" size={24} color="#fff" />
-                    <Text style={styles.buttonText}>Send</Text>
+                    <Text style={styles.buttonText}>Explore Majors</Text>
                   </>
                 )}
               </Pressable>
@@ -286,16 +435,16 @@ export default function App() {
 
         {isLoading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#0a7ea4" />
-            <Text style={styles.loadingText}>Analyzing recording...</Text>
+            <ActivityIndicator size="large" color="#2E7D32" />
+            <Text style={styles.loadingText}>Exploring your academic path...</Text>
           </View>
         )}
 
         {analysis && (
           <View style={styles.transcriptionCard}>
-            <Text style={styles.summaryTitle}>Summary and Tips</Text>
+            <Text style={styles.summaryTitle}>🎯 Your Academic Path Recommendations</Text>
             <ScrollView style={styles.scrollArea}>
-              <Text style={styles.transcriptionText}>{analysis}</Text>
+             <Text style={styles.transcriptionText}>{analysis}</Text>
             </ScrollView>
           </View>
         )}
@@ -334,7 +483,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#dc3545',
   },
   notRecording: {
-    backgroundColor: '#0a7ea4',
+    backgroundColor: '#2E7D32', // Academic green
   },
   buttonText: {
     color: '#fff',
@@ -347,7 +496,7 @@ const styles = StyleSheet.create({
   },
   transcriptionCard: {
     marginTop: 40,
-    backgroundColor: '#f0f4ff',
+    backgroundColor: '#f1f8e9', // Light academic green
     padding: 20,
     borderRadius: 15,
     shadowColor: '#000',
@@ -356,7 +505,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     borderWidth: 1,
-    borderColor: '#c0c7ff',
+    borderColor: '#C8E6C9', // Academic green border
   },
   transcriptionTitle: {
     fontSize: 20,
@@ -369,14 +518,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 12,
-    color: '#009688',
+    color: '#2E7D32', // Academic green
     textAlign: 'center',
   },
   transcriptionText: {
     fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
+    color: '#212121',
+    lineHeight: 26,
     textAlign: 'left',
+    padding: 10,
   },
   scrollArea: {
     maxHeight: 200,
@@ -419,6 +569,22 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#0a7ea4',
+    color: '#2E7D32', // Academic green
   },
-});
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 30,
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  promptText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 15,
+    paddingHorizontal: 20,
+    fontStyle: 'italic',
+  },
+}); 
