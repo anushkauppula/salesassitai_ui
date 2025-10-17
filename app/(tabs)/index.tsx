@@ -1,13 +1,15 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 import { useRecordings } from '../context/RecordingContext';
 
 export default function App() {
   const params = useLocalSearchParams();
   const { updateRecording, addRecording } = useRecordings();
+  const { user } = useAuth();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordedURI, setRecordedURI] = useState<string | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -150,8 +152,47 @@ export default function App() {
     }
   };
 
+  const testConnection = async () => {
+    try {
+      console.log('Testing connection to: http://192.168.1.213:8000/health');
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('Request timed out');
+        controller.abort();
+      }, 10000); // 10 second timeout
+      
+      const response = await fetch('http://192.168.1.213:8000/health', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      console.log('Response received:', response.status, response.statusText);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Response data:', data);
+        Alert.alert('Connection Test', '✅ Server is reachable!');
+      } else {
+        Alert.alert('Connection Test', `⚠️ Server responded with status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Connection test error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert('Connection Test', `❌ Connection failed: ${errorMessage}`);
+    }
+  };
+
   const sendAudioForTranscription = async (uri: string) => {
     if (isLoading) return;
+    
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     
     try {
       setIsLoading(true);
@@ -165,16 +206,40 @@ export default function App() {
         type: 'audio/x-m4a',
         name: 'recording.m4a',
       } as any);
+      
+      // Add user UID to the request
+      if (user?.id) {
+        formData.append('user_id', user.id);
+        console.log('Sending request with user UID:', user.id);
+        
+      } else {
+        console.warn('No user UID available');
+      }
 
       console.log('Sending request to analyze recording...');
-      const response = await fetch('http://10.10.117.2:8000/analyze_sales_call', {
+      console.log('User ID being sent:', user?.id);
+      console.log('Audio file URI:', uri);
+      console.log('Target URL: http://192.168.1.213:8000/analyze_sales_call');
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        console.log('Request timed out after 60 seconds');
+        controller.abort();
+      }, 60000); // 60 second timeout
+      
+      console.log('Making fetch request...');
+      const response = await fetch('http://192.168.1.213:8000/analyze_sales_call', {
         method: 'POST',
         body: formData,
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data',
+          // Remove Content-Type header to let fetch set it automatically for FormData
         },
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       console.log('Response status:', response.status);
       if (!response.ok) {
@@ -184,7 +249,8 @@ export default function App() {
       }
 
       const data = await response.json();
-      console.log('Received analysis data');
+      console.log('Received analysis data:', data);
+      console.log('Analysis completed successfully for user:', user?.id);
       
       if (!data.transcription || !data.analysis) {
         throw new Error('Invalid response format from server');
@@ -194,9 +260,38 @@ export default function App() {
       setAnalysis(data.analysis);
     } catch (error) {
       console.error('Error sending audio:', error);
+      
+      // Clear timeout if request failed
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      let errorMessage = 'Failed to analyze recording. Please try again.';
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMsg.includes('Network request failed')) {
+        errorMessage = 'Network connection failed. Please check your internet connection and ensure the backend server is running.';
+      } else if (errorMsg.includes('Could not connect')) {
+        errorMessage = 'Unable to connect to the analysis server. Please check if the backend server is running on the correct IP address.';
+      } else if (errorMsg.includes('timeout') || errorMsg.includes('AbortError')) {
+        errorMessage = 'Request timed out. The server may be processing a large file. Please try again.';
+      }
+      
       Alert.alert(
-        'Error',
-        'Failed to analyze recording. Please try again.'
+        'Connection Error',
+        errorMessage,
+        [
+          { text: 'OK' },
+          { 
+            text: 'Check Server', 
+            onPress: () => {
+              Alert.alert(
+                'Server Information',
+                'Make sure your backend server is running on:\n• IP: 192.168.1.213\n• Port: 8000\n• Endpoint: /analyze_sales_call'
+              );
+            }
+          }
+        ]
       );
     } finally {
       setIsLoading(false);
@@ -207,60 +302,90 @@ export default function App() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
-        <Text style={styles.title}>Savant Sales AI</Text>
-        {currentRecordingTitle && (
-          <Text style={styles.recordingTitle}>{currentRecordingTitle}</Text>
-        )}
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <Text style={styles.headerTitle}>AI Assistant for Sales</Text>
+          <Text style={styles.headerSubtitle}>Transform your sales conversations with AI-powered insights</Text>
+        </View>
 
-        <Pressable
-          style={[styles.recordButton, recording ? styles.recording : styles.notRecording]}
-          onPress={recording ? stopRecording : startRecording}
-        >
-          <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
-          <Text style={styles.buttonText}>{recording ? 'Stop' : 'Record'}</Text>
-        </Pressable>
+        {/* Main Content Card */}
+        <View style={styles.mainCard}>
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeTitle}>Welcome to Your Sales AI</Text>
+            <Text style={styles.welcomeDescription}>
+              Record your sales calls and get instant AI analysis to improve your performance
+            </Text>
+            
+            {/* Debug Test Button */}
+            <Pressable style={styles.testButton} onPress={testConnection}>
+              <MaterialIcons name="wifi" size={20} color="#007AFF" />
+              <Text style={styles.testButtonText}>Test Server Connection</Text>
+            </Pressable>
+          </View>
+          
+          {currentRecordingTitle && (
+            <View style={styles.recordingInfoCard}>
+              <MaterialIcons name="mic" size={20} color="#4caf50" />
+              <Text style={styles.recordingTitle}>{currentRecordingTitle}</Text>
+            </View>
+          )}
 
-        {recordedURI && (
-          <View style={styles.playback}>
-            <Pressable style={styles.playButton} onPress={playPauseRecording}>
-              <MaterialIcons name={isPlaying ? 'pause' : 'play-arrow'} size={30} color="#fff" />
-              <Text style={styles.buttonText}>{isPlaying ? 'Playing...' : 'Play'}</Text>
+          {/* Recording Controls */}
+          <View style={styles.recordingSection}>
+            <Pressable
+              style={[styles.recordButton, recording ? styles.recording : styles.notRecording]}
+              onPress={recording ? stopRecording : startRecording}
+            >
+              <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
+              <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
             </Pressable>
 
-            {!params.recordingUri && (
-              <Pressable
-                style={[styles.sendButton, isSending ? styles.sending : null]}
-                onPress={() => sendAudioForTranscription(recordedURI)}
-                disabled={isSending}
-              >
-                {isSending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialIcons name="send" size={24} color="#fff" />
-                    <Text style={styles.buttonText}>Send</Text>
-                  </>
+            {recordedURI && (
+              <View style={styles.playbackSection}>
+                <Pressable style={styles.playButton} onPress={playPauseRecording}>
+                  <MaterialIcons name={isPlaying ? 'pause' : 'play-arrow'} size={24} color="#fff" />
+                  <Text style={styles.buttonText}>{isPlaying ? 'Playing...' : 'Play Recording'}</Text>
+                </Pressable>
+
+                {!params.recordingUri && (
+                  <Pressable
+                    style={[styles.sendButton, isSending ? styles.sending : null]}
+                    onPress={() => sendAudioForTranscription(recordedURI)}
+                    disabled={isSending}
+                  >
+                    {isSending ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="send" size={20} color="#fff" />
+                        <Text style={styles.buttonText}>Analyze with AI</Text>
+                      </>
+                    )}
+                  </Pressable>
                 )}
-              </Pressable>
+              </View>
+            )}
+
+            {isLoading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>AI is analyzing your recording...</Text>
+              </View>
+            )}
+
+            {analysis && (
+              <View style={styles.analysisCard}>
+                <View style={styles.analysisHeader}>
+                  <MaterialIcons name="insights" size={24} color="#4caf50" />
+                  <Text style={styles.analysisTitle}>AI Analysis</Text>
+                </View>
+                <ScrollView style={styles.analysisScrollArea}>
+                  <Text style={styles.analysisText}>{analysis}</Text>
+                </ScrollView>
+              </View>
             )}
           </View>
-        )}
-
-        {isLoading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Analyzing recording...</Text>
-          </View>
-        )}
-
-        {analysis && (
-          <View style={styles.transcriptionCard}>
-            <Text style={styles.summaryTitle}>Summary and Tips</Text>
-            <ScrollView style={styles.scrollArea}>
-              <Text style={styles.transcriptionText}>{analysis}</Text>
-            </ScrollView>
-          </View>
-        )}
+        </View>
       </View>
     </ScrollView>
   );
@@ -269,24 +394,85 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
-  title: {
+  headerSection: {
+    backgroundColor: '#007AFF',
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#E3F2FD',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  mainCard: {
+    backgroundColor: '#fff',
+    margin: 20,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  welcomeSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  welcomeTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#333',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 12,
+  },
+  welcomeDescription: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  recordingInfoCard: {
+    backgroundColor: '#E8F5E8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  recordingSection: {
+    alignItems: 'center',
   },
   recordButton: {
     flexDirection: 'row',
-    padding: 14,
+    padding: 20,
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
-    width: 180,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   notRecording: {
     backgroundColor: '#4caf50',
@@ -294,27 +480,38 @@ const styles = StyleSheet.create({
   recording: {
     backgroundColor: '#f44336',
   },
+  playbackSection: {
+    width: '100%',
+    marginTop: 20,
+    gap: 12,
+  },
   playButton: {
     flexDirection: 'row',
     backgroundColor: '#2196f3',
-    padding: 12,
+    padding: 16,
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
-    width: 180,
-    alignSelf: 'center',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sendButton: {
     flexDirection: 'row',
     backgroundColor: '#673ab7',
-    padding: 12,
+    padding: 16,
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 15,
-    width: 180,
-    alignSelf: 'center',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sending: {
     opacity: 0.7,
@@ -322,40 +519,43 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    marginLeft: 10,
+    fontWeight: '600',
+    marginLeft: 8,
   },
-  playback: {
-    marginTop: 30,
+  loadingContainer: {
+    marginTop: 20,
     alignItems: 'center',
-  },
-  transcriptionCard: {
-    marginTop: 40,
-    backgroundColor: '#f0f4ff',
     padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#c0c7ff',
   },
-  transcriptionTitle: {
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  analysisCard: {
+    marginTop: 24,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4caf50',
+  },
+  analysisHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  analysisTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-    color: '#3b4cca',
-    textAlign: 'center',
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 8,
   },
-  summaryTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-    color: '#009688',
-    textAlign: 'center',
+  analysisScrollArea: {
+    maxHeight: 300,
   },
-  transcriptionText: {
+  analysisText: {
     fontSize: 16,
     color: '#333',
     lineHeight: 24,
@@ -365,24 +565,26 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 30,
   },
-
-  scrollArea: {
-    maxHeight: 200,
-  },
   recordingTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#673ab7',
-  },
-  loadingContainer: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
     fontSize: 16,
-    color: '#673ab7',
+    fontWeight: '500',
+    color: '#4caf50',
+    marginLeft: 8,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 16,
+    alignSelf: 'center',
+  },
+  testButtonText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
   },
 });
