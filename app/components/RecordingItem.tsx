@@ -1,6 +1,6 @@
 import { Audio } from 'expo-av';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
@@ -10,9 +10,10 @@ import { Recording } from '../types/recording';
 
 interface RecordingItemProps {
   recording: Recording;
+  index?: number;
 }
 
-export function RecordingItem({ recording }: RecordingItemProps) {
+export function RecordingItem({ recording, index = 0 }: RecordingItemProps) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -124,9 +125,13 @@ export function RecordingItem({ recording }: RecordingItemProps) {
     return new Date(timestamp).toLocaleDateString();
   };
 
+  const getItemColor = (index: number) => {
+    return '#c9d8e9';
+  };
+
   return (
     <>
-      <ThemedView style={styles.container}>
+      <ThemedView style={[styles.container, { backgroundColor: getItemColor(index) }]}>
         <TouchableOpacity 
           style={styles.infoContainer} 
           onPress={handleAnalyze}
@@ -140,14 +145,14 @@ export function RecordingItem({ recording }: RecordingItemProps) {
             <IconSymbol
               name={isPlaying ? 'pause.fill' : 'play.fill'}
               size={24}
-              color="#fff"
+              color="#4a7eb7"
             />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.button}>
-            <IconSymbol name="pencil" size={24} color="#fff" />
+            <IconSymbol name="pencil" size={24} color="#4a7eb7" />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDelete} style={styles.button}>
-            <IconSymbol name="trash.fill" size={24} color="#fff" />
+            <IconSymbol name="trash.fill" size={24} color="#f44336" />
           </TouchableOpacity>
         </View>
       </ThemedView>
@@ -198,31 +203,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     marginVertical: 8,
-    borderRadius: 12,
+    borderRadius: 16,
     justifyContent: 'space-between',
-    backgroundColor: '#009688',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   infoContainer: {
     flex: 1,
     marginRight: 16,
   },
   titleText: {
-    color: '#fff',
+    color: '#333',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
   dateText: {
-    color: '#fff',
-    opacity: 0.9,
+    color: '#666',
     fontSize: 14,
     marginBottom: 2,
   },
@@ -288,10 +291,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#f44336',
   },
   saveButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#4a7eb7',
   },
   buttonText: {
     color: '#fff',

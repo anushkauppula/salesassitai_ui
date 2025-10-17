@@ -31,7 +31,7 @@ export default function HistoryScreen() {
         {recordings.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <MaterialIcons name="mic-off" size={64} color="#ccc" />
+              <MaterialIcons name="mic-off" size={64} color="#4a7eb7" />
             </View>
             <Text style={styles.emptyTitle}>No Recordings Yet</Text>
             <Text style={styles.emptyDescription}>
@@ -40,14 +40,10 @@ export default function HistoryScreen() {
           </View>
         ) : (
           <View style={styles.recordingsContainer}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="library-music" size={20} color="#4a7eb7" />
-              <Text style={styles.sectionTitle}>Your Recordings</Text>
-            </View>
             <FlatList
               data={recordings}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <RecordingItem recording={item} />}
+              renderItem={({ item, index }) => <RecordingItem recording={item} index={index} />}
               scrollEnabled={false}
               showsVerticalScrollIndicator={false}
             />
@@ -116,7 +112,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#E3F2FD',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
@@ -137,6 +133,7 @@ const styles = StyleSheet.create({
   },
   // Recordings Container
   recordingsContainer: {
+    flex: 1,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
@@ -145,16 +142,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginLeft: 8,
   },
 });
