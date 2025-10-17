@@ -208,14 +208,6 @@ export default function App() {
         type: 'audio/m4a',
         name: 'recording.m4a',
       } as any);
-      
-      // Add user_id as a separate field (not in FormData for file)
-      if (user?.id) {
-        formData.append('user_id', user.id);
-        console.log('Sending request with user_id:', user.id);
-      } else {
-        console.warn('No user_id available');
-      }
 
       console.log('Sending request to analyze recording...');
       console.log('User ID being sent:', user?.id);
@@ -230,11 +222,8 @@ export default function App() {
       }, 60000); // 60 second timeout
       
       console.log('Making fetch request...');
-      console.log('FormData contents:');
-      console.log('- file: audio/m4a recording');
-      console.log('- user_id:', user?.id);
       
-      const response = await fetch('http://192.168.1.213:8000/analyze_sales_call', {
+      const response = await fetch('http://192.168.1.213:8000/analyze_sales_call?user_id=' + user?.id, {
         method: 'POST',
         body: formData,
         headers: {
