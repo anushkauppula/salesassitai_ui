@@ -201,19 +201,20 @@ export default function App() {
       setAnalysis(null);
 
       const formData = new FormData();
+      
+      // Add the audio file with proper format for your backend
       formData.append('file', {
         uri: uri,
-        type: 'audio/x-m4a',
+        type: 'audio/m4a',
         name: 'recording.m4a',
       } as any);
       
-      // Add user UID to the request
+      // Add user_id as a separate field (not in FormData for file)
       if (user?.id) {
         formData.append('user_id', user.id);
-        console.log('Sending request with user UID:', user.id);
-        
+        console.log('Sending request with user_id:', user.id);
       } else {
-        console.warn('No user UID available');
+        console.warn('No user_id available');
       }
 
       console.log('Sending request to analyze recording...');
@@ -229,12 +230,16 @@ export default function App() {
       }, 60000); // 60 second timeout
       
       console.log('Making fetch request...');
+      console.log('FormData contents:');
+      console.log('- file: audio/m4a recording');
+      console.log('- user_id:', user?.id);
+      
       const response = await fetch('http://192.168.1.213:8000/analyze_sales_call', {
         method: 'POST',
         body: formData,
         headers: {
           'Accept': 'application/json',
-          // Remove Content-Type header to let fetch set it automatically for FormData
+          // Don't set Content-Type - let fetch handle it for FormData
         },
         signal: controller.signal,
       });
@@ -242,6 +247,8 @@ export default function App() {
       clearTimeout(timeoutId);
 
       console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server error:', errorText);
@@ -251,6 +258,8 @@ export default function App() {
       const data = await response.json();
       console.log('Received analysis data:', data);
       console.log('Analysis completed successfully for user:', user?.id);
+      console.log('Transcription length:', data.transcription?.length || 0);
+      console.log('Analysis length:', data.analysis?.length || 0);
       
       if (!data.transcription || !data.analysis) {
         throw new Error('Invalid response format from server');
