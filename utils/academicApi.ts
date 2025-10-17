@@ -1,7 +1,7 @@
 // Academic API Helper Functions
 // Helper functions for the new academic-focused backend endpoints
 
-const BASE_URL = 'http://10.34.102.133:8000';
+import { BASE_URL } from './config';
 
 // Search academic programs by text
 export const searchPrograms = async (searchText: string): Promise<any> => {

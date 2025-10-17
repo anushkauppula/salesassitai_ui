@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRecordings } from '../context/RecordingContext';
+import { BASE_URL } from '../../utils/config';
 
 // Academic helper functions
 const formatAcademicRecommendations = (data: any): string => {
@@ -229,7 +230,7 @@ export default function App() {
       
       // First, test if server is reachable at all
       try {
-        const healthCheck = await fetch('http://10.34.102.133:8000/', {
+        const healthCheck = await fetch(`${BASE_URL}/`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
         });
@@ -238,7 +239,7 @@ export default function App() {
         console.log('Server health check failed:', error);
         Alert.alert(
           'Server Not Reachable',
-          `Cannot connect to server at http://10.34.102.133:8000\n\nPlease check:\n1. Server is running\n2. IP address is correct\n3. Network connection`,
+          `Cannot connect to server at ${BASE_URL}\n\nPlease check:\n1. Server is running\n2. IP address is correct\n3. Network connection`,
           [{ text: 'OK' }]
         );
         return;
@@ -246,13 +247,13 @@ export default function App() {
       
       // Try different common endpoints (prioritizing new academic endpoints)
       const endpointsToTry = [
-        'http://10.34.102.133:8000/explore_majors',
-        'http://10.34.102.133:8000/analyze_sales_call', // Legacy support
-        'http://10.34.102.133:8000/analyze',
-        'http://10.34.102.133:8000/transcribe',
-        'http://10.34.102.133:8000/api/explore_majors',
-        'http://10.34.102.133:8000/api/analyze',
-        'http://10.34.102.133:8000/v1/explore_majors',
+        `${BASE_URL}/explore_majors`,
+        `${BASE_URL}/analyze_sales_call`, // Legacy support
+        `${BASE_URL}/analyze`,
+        `${BASE_URL}/transcribe`,
+        `${BASE_URL}/api/explore_majors`,
+        `${BASE_URL}/api/analyze`,
+        `${BASE_URL}/v1/explore_majors`,
       ];
       
       let response: Response | null = null;
