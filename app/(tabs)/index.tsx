@@ -85,11 +85,9 @@ export default function App() {
       setRecordedURI(uri ?? null);
       setRecording(null);
 
-      // Get recording duration
       const status = await recording.getStatusAsync();
       const duration = status.durationMillis ? status.durationMillis / 1000 : 0;
 
-      // Save recording to storage
       if (uri) {
         const recordingId = `rec_${Date.now()}`;
         await addRecording({
@@ -157,7 +155,6 @@ export default function App() {
       }
     }
   };
-
 
   const speakAnalysis = async () => {
     if (!analysis) return;
@@ -282,19 +279,17 @@ export default function App() {
 
       const formData = new FormData();
       
-      // Add the audio file with proper format for your backend
       formData.append('file', {
         uri: uri,
         type: 'audio/m4a',
         name: 'recording.m4a',
       } as any);
-
+      
       console.log('Sending request to analyze recording...');
       console.log('User ID being sent:', user?.id);
       console.log('Audio file URI:', uri);
       console.log('Target URL: http://192.168.1.213:8000/analyze_sales_call');
       
-      // Create AbortController for timeout
       const controller = new AbortController();
       timeoutId = setTimeout(() => {
         console.log('Request timed out after 60 seconds');
@@ -302,16 +297,48 @@ export default function App() {
       }, 60000); // 60 second timeout
       
       console.log('Making fetch request...');
+      console.log('FormData contents:');
+      console.log('- file: audio/m4a recording');
+      console.log('- user_id:', user?.id);
       
-      const response = await fetch('http://192.168.1.213:8000/analyze_sales_call?user_id=' + user?.id, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-          // Don't set Content-Type - let fetch handle it for FormData
-        },
-        signal: controller.signal,
-      });
+      const endpoints = [
+        `http://192.168.1.213:8000/analyze_sales_call?user_id=${user?.id}`,
+        `http://localhost:8000/analyze_sales_call?user_id=${user?.id}`,
+        `http://127.0.0.1:8000/analyze_sales_call?user_id=${user?.id}`
+      ];
+      
+      let response;
+      let lastError;
+      
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying endpoint: ${endpoint}`);
+          response = await fetch(endpoint, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Accept': 'application/json',
+              // Don't set Content-Type - let fetch handle it for FormData
+            },
+            signal: controller.signal,
+          });
+          
+          if (response.ok) {
+            console.log(`Successfully connected to: ${endpoint}`);
+            break;
+          } else {
+            console.log(`Endpoint ${endpoint} returned status: ${response.status}`);
+          }
+        } catch (error) {
+          console.log(`Failed to connect to ${endpoint}:`, error instanceof Error ? error.message : 'Unknown error');
+          lastError = error;
+          continue;
+        }
+      }
+      
+      if (!response) {
+        throw new Error(`Could not connect to any endpoint. Last error: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
+      }
       
       clearTimeout(timeoutId);
 
@@ -339,7 +366,6 @@ export default function App() {
     } catch (error) {
       console.error('Error sending audio:', error);
       
-      // Clear timeout if request failed
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -378,111 +404,127 @@ export default function App() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.container}>
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>AI Assistant for Sales</Text>
-          <Text style={styles.headerSubtitle}>Transform your sales conversations with AI-powered insights</Text>
-        </View>
-
-        {/* Main Content Card */}
-        <View style={styles.mainCard}>
-          <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeTitle}>Welcome to Your Sales AI</Text>
-            <Text style={styles.welcomeDescription}>
-              Record your sales calls and get instant AI analysis to improve your performance
-            </Text>
-            
+    <View style={styles.container}>
+      {/* Fixed Header */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>AI Sales Assistant</Text>
+            <Text style={styles.headerSubtitle}>Transform conversations with AI insights</Text>
           </View>
-          
-          {currentRecordingTitle && (
-            <View style={styles.recordingInfoCard}>
-              <MaterialIcons name="mic" size={20} color="#4caf50" />
-              <Text style={styles.recordingTitle}>{currentRecordingTitle}</Text>
-            </View>
-          )}
-
-          {/* Recording Controls */}
-          <View style={styles.recordingSection}>
-            <Pressable
-              style={[styles.recordButton, recording ? styles.recording : styles.notRecording]}
-              onPress={recording ? stopRecording : startRecording}
-            >
-              <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
-              <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
-            </Pressable>
-
-            {recordedURI && (
-              <View style={styles.playbackSection}>
-                <Pressable style={styles.playButton} onPress={playPauseRecording}>
-                  <MaterialIcons name={isPlaying ? 'pause' : 'play-arrow'} size={24} color="#fff" />
-                  <Text style={styles.buttonText}>{isPlaying ? 'Playing...' : 'Play Recording'}</Text>
-                </Pressable>
-
-                {!params.recordingUri && (
-                  <Pressable
-                    style={[styles.sendButton, isSending ? styles.sending : null]}
-                    onPress={() => sendAudioForTranscription(recordedURI)}
-                    disabled={isSending}
-                  >
-                    {isSending ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <>
-                        <MaterialIcons name="send" size={20} color="#fff" />
-                        <Text style={styles.buttonText}>Analyze with AI</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
-              </View>
-            )}
-
-            {isLoading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>AI is analyzing your recording...</Text>
-              </View>
-            )}
-
-            {analysis && (
-              <View style={styles.analysisCard}>
-                <View style={styles.analysisHeader}>
-                  <MaterialIcons name="insights" size={24} color="#4caf50" />
-                  <Text style={styles.analysisTitle}>AI Analysis</Text>
-                  <View style={styles.speechControls}>
-                    <Pressable style={[styles.speechButton, isSpeaking && styles.speakingButton]} onPress={speakAnalysis}>
-                      <MaterialIcons 
-                        name={isSpeaking ? "stop" : "volume-up"} 
-                        size={20} 
-                        color={isSpeaking ? "#f44336" : "#007AFF"} 
-                      />
-                      <Text style={[styles.speechButtonText, { color: isSpeaking ? "#f44336" : "#007AFF" }]}>
-                        {isSpeaking ? "Stop" : "Listen"}
-                      </Text>
-                    </Pressable>
-                    
-                    <Pressable style={styles.speakerHintButton} onPress={() => {
-                      Alert.alert(
-                        'Speaker Output Issue',
-                        'If you can only hear through the earpiece:\n\n1. Check device volume is up\n2. Make sure device is not on silent mode\n3. Try using headphones or external speaker\n4. Check device audio settings\n\nThis is a known limitation with some devices.',
-                        [{ text: 'OK' }]
-                      );
-                    }}>
-                      <MaterialIcons name="help-outline" size={16} color="#666" />
-                    </Pressable>
-                  </View>
-                </View>
-                <ScrollView style={styles.analysisScrollArea}>
-                  <Text style={styles.analysisText}>{analysis}</Text>
-                </ScrollView>
-              </View>
-            )}
+          <View style={styles.headerIcon}>
+            <MaterialIcons name="psychology" size={32} color="#fff" />
           </View>
         </View>
       </View>
-    </ScrollView>
+
+      {/* Scrollable Body */}
+      <ScrollView 
+        style={styles.scrollableBody}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Welcome Card */}
+        <View style={styles.welcomeCard}>
+          <View style={styles.welcomeHeader}>
+            <MaterialIcons name="mic" size={28} color="#4a7eb7" />
+            <Text style={styles.welcomeTitle}>Record Your Sales Call</Text>
+          </View>
+          <Text style={styles.welcomeDescription}>
+            Capture your sales conversations and get instant AI-powered analysis to improve your performance
+          </Text>
+        </View>
+
+        {/* Recording Status */}
+        {currentRecordingTitle && (
+          <View style={styles.recordingStatusCard}>
+            <MaterialIcons name="fiber-manual-record" size={20} color="#f44336" />
+            <Text style={styles.recordingStatusText}>{currentRecordingTitle}</Text>
+          </View>
+        )}
+
+        {/* Recording Controls */}
+        <View style={styles.controlsCard}>
+          <Pressable
+            style={[styles.recordButton, recording ? styles.recording : styles.notRecording]}
+            onPress={recording ? stopRecording : startRecording}
+          >
+            <MaterialIcons name={recording ? 'stop' : 'fiber-manual-record'} size={28} color="#fff" />
+            <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
+          </Pressable>
+
+          {recordedURI && (
+            <View style={styles.playbackControls}>
+              <Pressable style={styles.playButton} onPress={playPauseRecording}>
+                <MaterialIcons name={isPlaying ? 'pause' : 'play-arrow'} size={24} color="#fff" />
+                <Text style={styles.buttonText}>{isPlaying ? 'Playing...' : 'Play Recording'}</Text>
+              </Pressable>
+
+              {!params.recordingUri && (
+                <Pressable
+                  style={[styles.sendButton, isSending ? styles.sending : null]}
+                  onPress={() => sendAudioForTranscription(recordedURI)}
+                  disabled={isSending}
+                >
+                  {isSending ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="send" size={20} color="#fff" />
+                      <Text style={styles.buttonText}>Analyze with AI</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {isLoading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4a7eb7" />
+              <Text style={styles.loadingText}>AI is analyzing your recording...</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Analysis Results */}
+        {analysis && (
+          <View style={styles.analysisCard}>
+            <View style={styles.analysisHeader}>
+              <View style={styles.analysisTitleContainer}>
+                <MaterialIcons name="insights" size={24} color="#4caf50" />
+                <Text style={styles.analysisTitle}>AI Analysis</Text>
+              </View>
+              <View style={styles.speechControls}>
+                <Pressable style={[styles.speechButton, isSpeaking && styles.speakingButton]} onPress={speakAnalysis}>
+                  <MaterialIcons 
+                    name={isSpeaking ? "stop" : "volume-up"} 
+                    size={20} 
+                    color={isSpeaking ? "#f44336" : "#4a7eb7"} 
+                  />
+                  <Text style={[styles.speechButtonText, { color: isSpeaking ? "#f44336" : "#4a7eb7" }]}>
+                    {isSpeaking ? "Stop" : "Listen"}
+                  </Text>
+                </Pressable>
+                
+                <Pressable style={styles.speakerHintButton} onPress={() => {
+                  Alert.alert(
+                    'Speaker Output Issue',
+                    'If you can only hear through the earpiece:\n\n1. Check device volume is up\n2. Make sure device is not on silent mode\n3. Try using headphones or external speaker\n4. Check device audio settings\n\nThis is a known limitation with some devices.',
+                    [{ text: 'OK' }]
+                  );
+                }}>
+                  <MaterialIcons name="help-outline" size={16} color="#666" />
+                </Pressable>
+              </View>
+            </View>
+            <ScrollView style={styles.analysisScrollArea}>
+              <Text style={styles.analysisText}>{analysis}</Text>
+            </ScrollView>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -491,70 +533,104 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  headerSection: {
-    backgroundColor: '#007AFF',
+  // Fixed Header Styles
+  fixedHeader: {
+    backgroundColor: '#4a7eb7',
     paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#E3F2FD',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  mainCard: {
-    backgroundColor: '#fff',
-    margin: 20,
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  welcomeSection: {
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'space-between',
   },
-  welcomeTitle: {
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#E3F2FD',
+    lineHeight: 18,
+  },
+  headerIcon: {
+    marginLeft: 16,
+  },
+  // Scrollable Body Styles
+  scrollableBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100, // Extra space for tab bar
+  },
+  // Welcome Card
+  welcomeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  welcomeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 12,
   },
   welcomeDescription: {
     fontSize: 16,
     color: '#666',
-    textAlign: 'center',
     lineHeight: 22,
   },
-  recordingInfoCard: {
-    backgroundColor: '#E8F5E8',
+  // Recording Status
+  recordingStatusCard: {
+    backgroundColor: '#FFEBEE',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
     borderRadius: 12,
     marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f44336',
   },
-  recordingSection: {
-    alignItems: 'center',
+  recordingStatusText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#f44336',
+    marginLeft: 12,
+  },
+  // Controls Card
+  controlsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   recordButton: {
     flexDirection: 'row',
@@ -575,7 +651,7 @@ const styles = StyleSheet.create({
   recording: {
     backgroundColor: '#f44336',
   },
-  playbackSection: {
+  playbackControls: {
     width: '100%',
     marginTop: 20,
     gap: 12,
@@ -625,14 +701,20 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#007AFF',
+    color: '#4a7eb7',
     fontWeight: '500',
   },
+  // Analysis Card
   analysisCard: {
-    marginTop: 24,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
     borderLeftWidth: 4,
     borderLeftColor: '#4caf50',
   },
@@ -642,17 +724,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     justifyContent: 'space-between',
   },
-  speechControls: {
+  analysisTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flex: 1,
   },
   analysisTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 8,
-    flex: 1,
+  },
+  speechControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   speechButton: {
     flexDirection: 'row',
@@ -662,7 +748,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: '#4a7eb7',
   },
   speakingButton: {
     backgroundColor: '#FFEBEE',
@@ -691,15 +777,5 @@ const styles = StyleSheet.create({
     color: '#333',
     lineHeight: 24,
     textAlign: 'left',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 30,
-  },
-  recordingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#4caf50',
-    marginLeft: 8,
   },
 });

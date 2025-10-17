@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Image,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -73,8 +74,15 @@ export default function SignupScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Sign up to get started</Text>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../../logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+              onError={(error) => console.log('Image load error:', error)}
+              onLoad={() => console.log('Image loaded successfully')}
+            />
+          </View>
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
@@ -147,7 +155,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#4a7eb7',
   },
   keyboardView: {
     flex: 1,
@@ -157,16 +165,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 60,
+  },
+  logo: {
+    width: 200,
+    height: 200,
+  },
+  logoText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 10,
+  },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#E3F2FD',
     textAlign: 'center',
     marginBottom: 40,
   },
@@ -179,7 +201,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#fff',
     marginBottom: 8,
   },
   input: {
@@ -193,7 +215,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   signupButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4a7eb7',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -214,11 +236,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 16,
-    color: '#666',
+    color: '#E3F2FD',
   },
   loginLink: {
     fontSize: 16,
-    color: '#007AFF',
+    color: '#fff',
     fontWeight: '600',
   },
 });

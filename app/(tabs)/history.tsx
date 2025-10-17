@@ -1,7 +1,6 @@
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedText } from '../../components/ThemedText';
 import { RecordingItem } from '../components/RecordingItem';
 import { useRecordings } from '../context/RecordingContext';
 
@@ -9,57 +8,153 @@ export default function HistoryScreen() {
   const { recordings } = useRecordings();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>Recording History</ThemedText>
-      </View>
-      {recordings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <ThemedText style={styles.emptyText}>No recordings yet</ThemedText>
+    <View style={styles.container}>
+      {/* Fixed Header */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Recording History</Text>
+            <Text style={styles.headerSubtitle}>{recordings.length} recordings saved</Text>
+          </View>
+          <View style={styles.headerIcon}>
+            <MaterialIcons name="history" size={32} color="#fff" />
+          </View>
         </View>
-      ) : (
-        <FlatList
-          data={recordings}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RecordingItem recording={item} />}
-          contentContainerStyle={styles.list}
-        />
-      )}
-    </SafeAreaView>
+      </View>
+
+      {/* Scrollable Body */}
+      <ScrollView 
+        style={styles.scrollableBody}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {recordings.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <MaterialIcons name="mic-off" size={64} color="#ccc" />
+            </View>
+            <Text style={styles.emptyTitle}>No Recordings Yet</Text>
+            <Text style={styles.emptyDescription}>
+              Start recording your sales calls to see them appear here. Your recordings will be saved automatically.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.recordingsContainer}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="library-music" size={20} color="#4a7eb7" />
+              <Text style={styles.sectionTitle}>Your Recordings</Text>
+            </View>
+            <FlatList
+              data={recordings}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => <RecordingItem recording={item} />}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
-  header: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+  // Fixed Header Styles
+  fixedHeader: {
+    backgroundColor: '#4a7eb7',
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  title: {
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#000',
+    color: '#fff',
+    marginBottom: 4,
   },
-  list: {
-    padding: 16,
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#E3F2FD',
+    lineHeight: 18,
   },
-  emptyContainer: {
+  headerIcon: {
+    marginLeft: 16,
+  },
+  // Scrollable Body Styles
+  scrollableBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100, // Extra space for tab bar
+  },
+  // Empty State
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 60,
   },
-  emptyText: {
-    textAlign: 'center',
-    opacity: 0.8,
-    fontSize: 16,
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  // Recordings Container
+  recordingsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 8,
   },
 });

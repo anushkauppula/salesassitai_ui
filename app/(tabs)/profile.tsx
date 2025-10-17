@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import React from 'react';
 import {
     Alert,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Switch,
@@ -29,7 +28,6 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await signOut();
-            // Explicitly navigate to login page
             router.replace('/auth/login');
           }
         }
@@ -47,7 +45,6 @@ export default function ProfileScreen() {
           text: 'Delete', 
           style: 'destructive',
           onPress: () => {
-            // TODO: Implement account deletion
             Alert.alert('Feature Coming Soon', 'Account deletion will be available in a future update.');
           }
         }
@@ -56,27 +53,45 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
+    <View style={styles.container}>
+      {/* Fixed Header */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <Text style={styles.headerSubtitle}>Manage your account settings</Text>
+          </View>
+          <View style={styles.headerIcon}>
+            <MaterialIcons name="person" size={32} color="#fff" />
+          </View>
         </View>
+      </View>
 
+      {/* Scrollable Body */}
+      <ScrollView 
+        style={styles.scrollableBody}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* User Info Card */}
         <View style={styles.userCard}>
-          <View style={styles.avatarContainer}>
-            <MaterialIcons name="person" size={40} color="#007AFF" />
-          </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.email?.split('@')[0] || 'User'}</Text>
-            <Text style={styles.userEmail}>{user?.email}</Text>
+            <View style={styles.avatarContainer}>
+              <MaterialIcons name="account-circle" size={60} color="#4a7eb7" />
+            </View>
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>{(user?.email || 'Guest').split('@')[0]}</Text>
+              <Text style={styles.userEmail}>{user?.email || 'Not logged in'}</Text>
+            </View>
           </View>
         </View>
 
         {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
+        <View style={styles.settingsCard}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="settings" size={20} color="#4a7eb7" />
+            <Text style={styles.sectionTitle}>Settings</Text>
+          </View>
           
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
@@ -86,7 +101,7 @@ export default function ProfileScreen() {
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#E5E5E7', true: '#007AFF' }}
+              trackColor={{ false: '#E5E5E7', true: '#4a7eb7' }}
               thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
             />
           </View>
@@ -99,69 +114,83 @@ export default function ProfileScreen() {
             <Switch
               value={darkModeEnabled}
               onValueChange={setDarkModeEnabled}
-              trackColor={{ false: '#E5E5E7', true: '#007AFF' }}
+              trackColor={{ false: '#E5E5E7', true: '#4a7eb7' }}
               thumbColor={darkModeEnabled ? '#fff' : '#f4f3f4'}
             />
           </View>
         </View>
 
         {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+        <View style={styles.accountCard}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="account-box" size={20} color="#4a7eb7" />
+            <Text style={styles.sectionTitle}>Account</Text>
+          </View>
           
-          <TouchableOpacity style={styles.actionItem}>
-            <View style={styles.actionLeft}>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
               <MaterialIcons name="edit" size={24} color="#666" />
-              <Text style={styles.actionLabel}>Edit Profile</Text>
+              <Text style={styles.settingLabel}>Edit Profile</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#C7C7CC" />
+            <MaterialIcons name="chevron-right" size={24} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionItem}>
-            <View style={styles.actionLeft}>
-              <MaterialIcons name="security" size={24} color="#666" />
-              <Text style={styles.actionLabel}>Change Password</Text>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="lock" size={24} color="#666" />
+              <Text style={styles.settingLabel}>Change Password</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#C7C7CC" />
+            <MaterialIcons name="chevron-right" size={24} color="#ccc" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Support Section */}
+        <View style={styles.supportCard}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="help" size={20} color="#4a7eb7" />
+            <Text style={styles.sectionTitle}>Support</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="policy" size={24} color="#666" />
+              <Text style={styles.settingLabel}>Privacy Policy</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionItem}>
-            <View style={styles.actionLeft}>
-              <MaterialIcons name="privacy-tip" size={24} color="#666" />
-              <Text style={styles.actionLabel}>Privacy Policy</Text>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="help-center" size={24} color="#666" />
+              <Text style={styles.settingLabel}>Help & Support</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#C7C7CC" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionItem}>
-            <View style={styles.actionLeft}>
-              <MaterialIcons name="help" size={24} color="#666" />
-              <Text style={styles.actionLabel}>Help & Support</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color="#C7C7CC" />
+            <MaterialIcons name="chevron-right" size={24} color="#ccc" />
           </TouchableOpacity>
         </View>
 
         {/* Danger Zone */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Danger Zone</Text>
+        <View style={styles.dangerCard}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="warning" size={20} color="#f44336" />
+            <Text style={[styles.sectionTitle, { color: '#f44336' }]}>Danger Zone</Text>
+          </View>
           
-          <TouchableOpacity style={[styles.actionItem, styles.dangerItem]} onPress={handleDeleteAccount}>
-            <View style={styles.actionLeft}>
-              <MaterialIcons name="delete" size={24} color="#FF3B30" />
-              <Text style={[styles.actionLabel, styles.dangerText]}>Delete Account</Text>
+          <TouchableOpacity style={styles.dangerItem} onPress={handleDeleteAccount}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="delete-forever" size={24} color="#f44336" />
+              <Text style={[styles.settingLabel, { color: '#f44336' }]}>Delete Account</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#C7C7CC" />
+            <MaterialIcons name="chevron-right" size={24} color="#ccc" />
           </TouchableOpacity>
         </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <MaterialIcons name="logout" size={24} color="#fff" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -170,126 +199,180 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  scrollContainer: {
-    paddingBottom: 30,
-  },
-  header: {
+  // Fixed Header Styles
+  fixedHeader: {
+    backgroundColor: '#4a7eb7',
+    paddingTop: 60,
+    paddingBottom: 20,
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  userCard: {
-    backgroundColor: '#fff',
-    margin: 20,
-    padding: 20,
-    borderRadius: 16,
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#E3F2FD',
+    lineHeight: 18,
+  },
+  headerIcon: {
+    marginLeft: 16,
+  },
+  // Scrollable Body Styles
+  scrollableBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100, // Extra space for tab bar
+  },
+  // User Card
+  userCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#E3F2FD',
-    justifyContent: 'center',
+  userInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  avatarContainer: {
     marginRight: 16,
   },
-  userInfo: {
+  userDetails: {
     flex: 1,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 16,
     color: '#666',
   },
-  section: {
-    marginHorizontal: 20,
+  // Cards
+  settingsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  accountCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  supportCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  dangerCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f44336',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
-    marginLeft: 4,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 8,
   },
   settingItem: {
-    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dangerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
   },
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   settingLabel: {
     fontSize: 16,
-    color: '#000',
+    color: '#333',
     marginLeft: 12,
-  },
-  actionItem: {
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  actionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionLabel: {
-    fontSize: 16,
-    color: '#000',
-    marginLeft: 12,
-  },
-  dangerItem: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF3B30',
-  },
-  dangerText: {
-    color: '#FF3B30',
   },
   logoutButton: {
-    backgroundColor: '#FF3B30',
     flexDirection: 'row',
+    backgroundColor: '#f44336',
+    padding: 16,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
     marginTop: 20,
+    shadowColor: '#f44336',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  logoutText: {
+  logoutButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: 'bold',
+    marginLeft: 10,
   },
 });
