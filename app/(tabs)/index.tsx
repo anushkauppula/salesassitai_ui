@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
+import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +20,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [currentRecordingTitle, setCurrentRecordingTitle] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
     if (params.recordingUri) {
@@ -33,8 +35,12 @@ export default function App() {
       if (sound) {
         sound.unloadAsync();
       }
+      // Stop any ongoing speech when component unmounts
+      if (isSpeaking) {
+        Speech.stop();
+      }
     };
-  }, [sound]);
+  }, [sound, isSpeaking]);
 
   const startRecording = async () => {
     try {
@@ -152,40 +158,114 @@ export default function App() {
     }
   };
 
-  const testConnection = async () => {
+
+  const speakAnalysis = async () => {
+    if (!analysis) return;
+    
     try {
-      console.log('Testing connection to: http://192.168.1.213:8000/health');
-      
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('Request timed out');
-        controller.abort();
-      }, 10000); // 10 second timeout
-      
-      const response = await fetch('http://192.168.1.213:8000/health', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      console.log('Response received:', response.status, response.statusText);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Response data:', data);
-        Alert.alert('Connection Test', '✅ Server is reachable!');
+      if (isSpeaking) {
+        // Stop current speech
+        Speech.stop();
+        setIsSpeaking(false);
       } else {
-        Alert.alert('Connection Test', `⚠️ Server responded with status: ${response.status}`);
+        // Start speaking
+        setIsSpeaking(true);
+        
+        // Clean up the text for better speech
+        const cleanText = analysis
+          .replace(/\*\*/g, '') // Remove markdown bold
+          .replace(/\*/g, '') // Remove markdown italic
+          .replace(/#/g, '') // Remove markdown headers
+          .replace(/\n\n/g, '. ') // Replace double newlines with periods
+          .replace(/\n/g, ' ') // Replace single newlines with spaces
+          .trim();
+        
+        // Try multiple approaches to force speaker output
+        try {
+          // Approach 1: Set audio mode for speaker output
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+            interruptionModeAndroid: 1,
+            interruptionModeIOS: 1,
+          });
+          
+          // Wait for audio mode to be set
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Approach 2: Try with different audio session settings
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+            interruptionModeAndroid: 1,
+            interruptionModeIOS: 1,
+          });
+          
+          // Additional wait
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (audioError) {
+          console.log('Audio mode setting failed:', audioError);
+        }
+        
+        // Try speech with multiple configurations
+        try {
+          await Speech.speak(cleanText, {
+            language: 'en-US',
+            pitch: 1.0,
+            rate: 0.8,
+            onStart: () => {
+              console.log('Speech started - should be through speaker');
+            },
+            onDone: () => {
+              setIsSpeaking(false);
+              // Restore audio mode for recording
+              Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: true,
+                shouldDuckAndroid: true,
+              });
+            },
+            onStopped: () => {
+              setIsSpeaking(false);
+              // Restore audio mode for recording
+              Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: true,
+                shouldDuckAndroid: true,
+              });
+            },
+            onError: (error) => {
+              console.error('Speech error:', error);
+              setIsSpeaking(false);
+              // Restore audio mode for recording
+              Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: true,
+                shouldDuckAndroid: true,
+              });
+              Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
+            }
+          });
+        } catch (speechError) {
+          console.error('Speech failed:', speechError);
+          setIsSpeaking(false);
+          Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
+        }
       }
     } catch (error) {
-      console.error('Connection test error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      Alert.alert('Connection Test', `❌ Connection failed: ${errorMessage}`);
+      console.error('Speech error:', error);
+      setIsSpeaking(false);
+      Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
     }
   };
 
@@ -314,11 +394,6 @@ export default function App() {
               Record your sales calls and get instant AI analysis to improve your performance
             </Text>
             
-            {/* Debug Test Button */}
-            <Pressable style={styles.testButton} onPress={testConnection}>
-              <MaterialIcons name="wifi" size={20} color="#007AFF" />
-              <Text style={styles.testButtonText}>Test Server Connection</Text>
-            </Pressable>
           </View>
           
           {currentRecordingTitle && (
@@ -376,6 +451,28 @@ export default function App() {
                 <View style={styles.analysisHeader}>
                   <MaterialIcons name="insights" size={24} color="#4caf50" />
                   <Text style={styles.analysisTitle}>AI Analysis</Text>
+                  <View style={styles.speechControls}>
+                    <Pressable style={[styles.speechButton, isSpeaking && styles.speakingButton]} onPress={speakAnalysis}>
+                      <MaterialIcons 
+                        name={isSpeaking ? "stop" : "volume-up"} 
+                        size={20} 
+                        color={isSpeaking ? "#f44336" : "#007AFF"} 
+                      />
+                      <Text style={[styles.speechButtonText, { color: isSpeaking ? "#f44336" : "#007AFF" }]}>
+                        {isSpeaking ? "Stop" : "Listen"}
+                      </Text>
+                    </Pressable>
+                    
+                    <Pressable style={styles.speakerHintButton} onPress={() => {
+                      Alert.alert(
+                        'Speaker Output Issue',
+                        'If you can only hear through the earpiece:\n\n1. Check device volume is up\n2. Make sure device is not on silent mode\n3. Try using headphones or external speaker\n4. Check device audio settings\n\nThis is a known limitation with some devices.',
+                        [{ text: 'OK' }]
+                      );
+                    }}>
+                      <MaterialIcons name="help-outline" size={16} color="#666" />
+                    </Pressable>
+                  </View>
                 </View>
                 <ScrollView style={styles.analysisScrollArea}>
                   <Text style={styles.analysisText}>{analysis}</Text>
@@ -543,12 +640,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    justifyContent: 'space-between',
+  },
+  speechControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   analysisTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 8,
+    flex: 1,
+  },
+  speechButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  speakingButton: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#f44336',
+  },
+  speechButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  speakerHintButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   analysisScrollArea: {
     maxHeight: 300,
@@ -567,22 +700,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#4caf50',
-    marginLeft: 8,
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 16,
-    alignSelf: 'center',
-  },
-  testButtonText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
     marginLeft: 8,
   },
 });
