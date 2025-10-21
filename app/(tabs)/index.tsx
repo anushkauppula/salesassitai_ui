@@ -2,9 +2,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRecordings } from '../context/RecordingContext';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BASE_URL } from '../../utils/config';
+import { useRecordings } from '../context/RecordingContext';
 
 // Academic helper functions
 const formatAcademicRecommendations = (data: any): string => {
@@ -75,6 +75,11 @@ export default function App() {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [currentRecordingTitle, setCurrentRecordingTitle] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Text-to-Speech state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechRate, setSpeechRate] = useState(0.8);
+  const [speechPitch, setSpeechPitch] = useState(1.0);
 
   useEffect(() => {
     if (params.recordingUri) {
@@ -219,12 +224,28 @@ export default function App() {
       setTranscription(null);
       setAnalysis(null);
 
+      // Create FormData with platform-specific file handling
       const formData = new FormData();
-      formData.append('file', {
-        uri: uri,
-        type: 'audio/x-m4a',
-        name: 'recording.m4a',
-      } as any);
+      
+      if (Platform.OS === 'web') {
+        // For web platform, we need to fetch the file as a Blob first
+        try {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          formData.append('file', blob, 'recording.m4a');
+        } catch (error) {
+          console.error('Error creating blob from URI:', error);
+          Alert.alert('Error', 'Failed to process audio file for web upload.');
+          return;
+        }
+      } else {
+        // For mobile platforms (React Native/Expo)
+        formData.append('file', {
+          uri: uri,
+          type: 'audio/x-m4a',
+          name: 'recording.m4a',
+        } as any);
+      }
 
       console.log('Sending request to analyze recording...');
       
@@ -262,12 +283,15 @@ export default function App() {
       for (const endpoint of endpointsToTry) {
         try {
           console.log(`Trying endpoint: ${endpoint}`);
+          
+          // ✅ FIXED: Remove Content-Type header to let browser set it automatically
           response = await fetch(endpoint, {
             method: 'POST',
             body: formData,
             headers: {
               'Accept': 'application/json',
-              'Content-Type': 'multipart/form-data',
+              // ❌ REMOVED: 'Content-Type': 'multipart/form-data',
+              // The browser will automatically set: multipart/form-data; boundary=...
             },
           });
           
@@ -382,6 +406,85 @@ export default function App() {
     }
   };
 
+  // Text-to-Speech functionality
+  const speakText = async (text: string) => {
+    if (Platform.OS === 'web') {
+      // Web Speech API
+      if ('speechSynthesis' in window) {
+        // Stop any current speech
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = speechRate;
+        utterance.pitch = speechPitch;
+        utterance.volume = 1.0;
+        
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        
+        window.speechSynthesis.speak(utterance);
+      } else {
+        Alert.alert('Text-to-Speech Not Supported', 'Your browser does not support text-to-speech functionality.');
+      }
+    } else {
+      // React Native - using expo-speech
+      try {
+        const Speech = await import('expo-speech');
+        
+        if (isSpeaking) {
+          Speech.stop();
+          setIsSpeaking(false);
+        } else {
+          Speech.speak(text, {
+            rate: speechRate,
+            pitch: speechPitch,
+            volume: 1.0,
+            language: 'en-US',
+            onStart: () => setIsSpeaking(true),
+            onDone: () => setIsSpeaking(false),
+            onError: () => setIsSpeaking(false),
+          });
+        }
+      } catch (error) {
+        console.error('TTS Error:', error);
+        Alert.alert('Text-to-Speech Error', 'Failed to initialize text-to-speech. Please try again.');
+      }
+    }
+  };
+
+  const stopSpeaking = () => {
+    if (Platform.OS === 'web') {
+      window.speechSynthesis.cancel();
+    } else {
+      // For React Native
+      import('expo-speech').then((Speech) => {
+        Speech.stop();
+      });
+    }
+    setIsSpeaking(false);
+  };
+
+  const toggleSpeaking = () => {
+    if (analysis) {
+      if (isSpeaking) {
+        stopSpeaking();
+      } else {
+        // Clean the text for better speech (remove markdown formatting)
+        const cleanText = analysis
+          .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+          .replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
+          .replace(/#{1,6}\s/g, '') // Remove headers
+          .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+          .replace(/`(.*?)`/g, '$1') // Remove inline code
+          .replace(/\n{3,}/g, '\n\n') // Reduce multiple newlines
+          .trim();
+        
+        speakText(cleanText);
+      }
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
@@ -443,7 +546,22 @@ export default function App() {
 
         {analysis && (
           <View style={styles.transcriptionCard}>
-            <Text style={styles.summaryTitle}>🎯 Your Academic Path Recommendations</Text>
+            <View style={styles.analysisHeader}>
+              <Text style={styles.summaryTitle}>🎯 Your Academic Path Recommendations</Text>
+              <Pressable 
+                style={[styles.ttsButton, isSpeaking && styles.ttsButtonActive]} 
+                onPress={toggleSpeaking}
+              >
+                <MaterialIcons 
+                  name={isSpeaking ? 'stop' : 'volume-up'} 
+                  size={20} 
+                  color={isSpeaking ? '#fff' : '#2E7D32'} 
+                />
+                <Text style={[styles.ttsButtonText, isSpeaking && styles.ttsButtonTextActive]}>
+                  {isSpeaking ? 'Stop Reading' : 'Listen'}
+                </Text>
+              </Pressable>
+            </View>
             <ScrollView style={styles.scrollArea}>
              <Text style={styles.transcriptionText}>{analysis}</Text>
             </ScrollView>
@@ -515,12 +633,45 @@ const styles = StyleSheet.create({
     color: '#3b4cca',
     textAlign: 'center',
   },
+  analysisHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
   summaryTitle: {
     fontSize: 20,
     fontWeight: '700',
-    marginBottom: 12,
     color: '#2E7D32', // Academic green
     textAlign: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  ttsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f8e9',
+    borderWidth: 1,
+    borderColor: '#2E7D32',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  ttsButtonActive: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  ttsButtonText: {
+    color: '#2E7D32',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  ttsButtonTextActive: {
+    color: '#fff',
   },
   transcriptionText: {
     fontSize: 16,
