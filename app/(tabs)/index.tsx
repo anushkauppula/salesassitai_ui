@@ -288,7 +288,7 @@ export default function App() {
       console.log('Sending request to analyze recording...');
       console.log('User ID being sent:', user?.id);
       console.log('Audio file URI:', uri);
-      console.log('Target URL: http://192.168.1.213:8000/analyze_sales_call');
+      console.log('Target URL: ' + process.env.BACKEND_URL +':8000/analyze_sales_call');
       
       const controller = new AbortController();
       timeoutId = setTimeout(() => {
@@ -302,7 +302,7 @@ export default function App() {
       console.log('- user_id:', user?.id);
       
       const endpoints = [
-        `http://192.168.1.213:8000/analyze_sales_call?user_id=${user?.id}`,
+        process.env.BACKEND_URL + `:8000/analyze_sales_call?user_id=${user?.id}`,
         `http://localhost:8000/analyze_sales_call?user_id=${user?.id}`,
         `http://127.0.0.1:8000/analyze_sales_call?user_id=${user?.id}`
       ];
@@ -391,7 +391,7 @@ export default function App() {
             onPress: () => {
               Alert.alert(
                 'Server Information',
-                'Make sure your backend server is running on:\n• IP: 192.168.1.213\n• Port: 8000\n• Endpoint: /analyze_sales_call'
+                'Make sure your backend server is running on:\n• IP: ' + process.env.BACKEND_URL + '\n• Port: 8000\n• Endpoint: /analyze_sales_call'
               );
             }
           }
