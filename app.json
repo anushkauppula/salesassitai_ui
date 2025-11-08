@@ -9,7 +9,19 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "192.168.1.213": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
+            }
+          }
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +31,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "AUDIO_RECORDING"
-      ]
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",
@@ -40,6 +53,10 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "SUPABASE_URL": "https://rpydfzymozkguvyukuha.supabase.co",
+      "SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJweWRmenltb3prZ3V2eXVrdWhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzQwODEsImV4cCI6MjA2MzUxMDA4MX0.phMAYdw2eHo1p25SQ7HThCA7ptpwFWchUPCFG-vQkaI"
     }
   }
 }
