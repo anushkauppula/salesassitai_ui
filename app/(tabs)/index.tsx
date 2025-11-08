@@ -3,7 +3,7 @@ import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useRecordings } from '../context/RecordingContext';
 
@@ -61,10 +61,13 @@ export default function App() {
       }
       setIsPlaying(false);
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      // Set audio mode (skip platform-specific options on web)
+      if (Platform.OS !== 'web') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+      }
 
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
@@ -108,15 +111,18 @@ export default function App() {
       if (!recordedURI) return;
 
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-          interruptionModeAndroid: 1,
-          interruptionModeIOS: 1,
-        });
+        // Set audio mode (skip platform-specific options on web)
+        if (Platform.OS !== 'web') {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+            interruptionModeAndroid: 1,
+            interruptionModeIOS: 1,
+          });
+        }
 
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: recordedURI },
@@ -177,38 +183,40 @@ export default function App() {
           .replace(/\n/g, ' ') // Replace single newlines with spaces
           .trim();
         
-        // Try multiple approaches to force speaker output
-        try {
-          // Approach 1: Set audio mode for speaker output
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
-            interruptionModeAndroid: 1,
-            interruptionModeIOS: 1,
-          });
-          
-          // Wait for audio mode to be set
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Approach 2: Try with different audio session settings
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
-            interruptionModeAndroid: 1,
-            interruptionModeIOS: 1,
-          });
-          
-          // Additional wait
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-        } catch (audioError) {
-          console.log('Audio mode setting failed:', audioError);
+        // Try multiple approaches to force speaker output (skip on web)
+        if (Platform.OS !== 'web') {
+          try {
+            // Approach 1: Set audio mode for speaker output
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: true,
+              staysActiveInBackground: false,
+              shouldDuckAndroid: true,
+              playThroughEarpieceAndroid: false,
+              interruptionModeAndroid: 1,
+              interruptionModeIOS: 1,
+            });
+            
+            // Wait for audio mode to be set
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Approach 2: Try with different audio session settings
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: true,
+              staysActiveInBackground: false,
+              shouldDuckAndroid: true,
+              playThroughEarpieceAndroid: false,
+              interruptionModeAndroid: 1,
+              interruptionModeIOS: 1,
+            });
+            
+            // Additional wait
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+          } catch (audioError) {
+            console.log('Audio mode setting failed:', audioError);
+          }
         }
         
         // Try speech with multiple configurations
@@ -222,34 +230,40 @@ export default function App() {
             },
             onDone: () => {
               setIsSpeaking(false);
-              // Restore audio mode for recording
-              Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: true,
-                shouldDuckAndroid: true,
-              });
+              // Restore audio mode for recording (skip on web)
+              if (Platform.OS !== 'web') {
+                Audio.setAudioModeAsync({
+                  allowsRecordingIOS: true,
+                  playsInSilentModeIOS: true,
+                  staysActiveInBackground: true,
+                  shouldDuckAndroid: true,
+                }).catch(() => {});
+              }
             },
             onStopped: () => {
               setIsSpeaking(false);
-              // Restore audio mode for recording
-              Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: true,
-                shouldDuckAndroid: true,
-              });
+              // Restore audio mode for recording (skip on web)
+              if (Platform.OS !== 'web') {
+                Audio.setAudioModeAsync({
+                  allowsRecordingIOS: true,
+                  playsInSilentModeIOS: true,
+                  staysActiveInBackground: true,
+                  shouldDuckAndroid: true,
+                }).catch(() => {});
+              }
             },
             onError: (error) => {
               console.error('Speech error:', error);
               setIsSpeaking(false);
-              // Restore audio mode for recording
-              Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: true,
-                shouldDuckAndroid: true,
-              });
+              // Restore audio mode for recording (skip on web)
+              if (Platform.OS !== 'web') {
+                Audio.setAudioModeAsync({
+                  allowsRecordingIOS: true,
+                  playsInSilentModeIOS: true,
+                  staysActiveInBackground: true,
+                  shouldDuckAndroid: true,
+                }).catch(() => {});
+              }
               Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
             }
           });
@@ -279,11 +293,30 @@ export default function App() {
 
       const formData = new FormData();
       
-      formData.append('file', {
-        uri: uri,
-        type: 'audio/m4a',
-        name: 'recording.m4a',
-      } as any);
+      // Handle file differently for web vs mobile
+      if (Platform.OS === 'web') {
+        // For web, we need to fetch the file as a blob
+        try {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          formData.append('file', blob, 'recording.m4a');
+        } catch (error) {
+          console.error('Error creating blob from URI:', error);
+          // Fallback: try with URI directly
+          formData.append('file', {
+            uri: uri,
+            type: 'audio/m4a',
+            name: 'recording.m4a',
+          } as any);
+        }
+      } else {
+        // For mobile (iOS/Android), use URI directly
+        formData.append('file', {
+          uri: uri,
+          type: 'audio/m4a',
+          name: 'recording.m4a',
+        } as any);
+      }
       
       console.log('Sending request to analyze recording...');
       console.log('User ID being sent:', user?.id);
