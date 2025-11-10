@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -21,12 +21,251 @@ import { useAuth } from '../context/AuthContext';
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPrivacyPolicyModal, setShowPrivacyPolicyModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  
+  // Edit Profile State
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  
+  // Display user details state (for showing in profile card)
+  const [displayFirstName, setDisplayFirstName] = useState('');
+  const [displayLastName, setDisplayLastName] = useState('');
+
+  // Fetch user details from backend using GET /user_details/{user_id}
+  const fetchUserDetails = async (forDisplay = false) => {
+    if (!user?.id) {
+      if (!forDisplay) {
+        Alert.alert('Error', 'No user found. Please try logging in again.');
+      }
+      return;
+    }
+
+    if (forDisplay) {
+      // Don't show loading spinner when fetching for display
+    } else {
+      setIsLoadingProfile(true);
+    }
+    
+    try {
+      const backendUrl = 'http://192.168.1.222';
+      
+      const endpoints = [
+        `${backendUrl}:8000/user_details/${user.id}`,
+        // Only use localhost on web, not on mobile
+        ...(Platform.OS === 'web' ? [`http://localhost:8000/user_details/${user.id}`] : [])
+      ];
+      
+      console.log('Fetching user details from backend:', { userId: user.id, endpoints, forDisplay });
+      
+      let response;
+      let lastError;
+      
+      for (const endpoint of endpoints) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 10000);
+        
+        try {
+          console.log(`Trying endpoint: ${endpoint}`);
+          response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          console.log(`Response status: ${response.status} for ${endpoint}`);
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Successfully fetched user details:', data);
+            // Set the user details
+            setFirstName(data.first_name || '');
+            setLastName(data.last_name || '');
+            setPhoneNumber(data.phone_number || '');
+            
+            // Also update display values
+            if (forDisplay) {
+              setDisplayFirstName(data.first_name || '');
+              setDisplayLastName(data.last_name || '');
+            }
+            
+            return;
+          } else {
+            const errorText = await response.text();
+            console.error(`Backend error ${response.status}:`, errorText);
+            lastError = new Error(`Backend error: ${response.status} - ${errorText}`);
+          }
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            console.error(`Request timeout for ${endpoint}`);
+            lastError = new Error(`Request timeout: Backend server not reachable at ${endpoint}`);
+          } else {
+            console.error(`Error connecting to ${endpoint}:`, error);
+            lastError = error;
+          }
+          continue;
+        }
+      }
+      
+      // If we get here, all endpoints failed - set defaults
+      console.warn('Could not fetch user details:', lastError);
+      setFirstName('');
+      setLastName('');
+      setPhoneNumber('');
+      if (forDisplay) {
+        setDisplayFirstName('');
+        setDisplayLastName('');
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setFirstName('');
+      setLastName('');
+      setPhoneNumber('');
+      if (forDisplay) {
+        setDisplayFirstName('');
+        setDisplayLastName('');
+      }
+    } finally {
+      if (!forDisplay) {
+        setIsLoadingProfile(false);
+      }
+    }
+  };
+
+  // Fetch user details when component mounts or user changes
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserDetails(true); // Fetch for display purposes
+    }
+  }, [user?.id]);
+
+  // Open edit profile modal and fetch user details
+  const handleOpenEditProfile = async () => {
+    setShowEditProfileModal(true);
+    await fetchUserDetails();
+  };
+
+  // Save updated user details to backend using POST /user_details/update
+  const handleSaveProfile = async () => {
+    if (!firstName || !lastName || !phoneNumber) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (!user?.id || !user?.email) {
+      Alert.alert('Error', 'No user found. Please try logging in again.');
+      return;
+    }
+
+    // Basic phone number validation
+    const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/;
+    if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
+      Alert.alert('Error', 'Please enter a valid phone number');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const backendUrl = 'http://192.168.1.222';
+      
+      const endpoints = [
+        `${backendUrl}:8000/user_details/update`,
+        // Only use localhost on web, not on mobile
+        ...(Platform.OS === 'web' ? [`http://localhost:8000/user_details/update`] : [])
+      ];
+      
+      const payload = {
+        user_id: user.id,
+        first_name: firstName,
+        last_name: lastName,
+        phone_number: phoneNumber,
+        email: user.email,
+      };
+      
+      console.log('Updating user profile:', { userId: user.id, endpoints, payload });
+      
+      let response;
+      let lastError;
+      
+      for (const endpoint of endpoints) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 10000);
+        
+        try {
+          console.log(`Trying update endpoint: ${endpoint}`);
+          console.log('Sending payload:', JSON.stringify(payload, null, 2));
+          
+          response = await fetch(endpoint, {
+            method: 'POST',  // Use POST method for update
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          console.log(`Response status: ${response.status} for ${endpoint}`);
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Successfully updated user profile. Response:', data);
+            // Update display values
+            setDisplayFirstName(firstName);
+            setDisplayLastName(lastName);
+            // Close modal immediately after successful save
+            setShowEditProfileModal(false);
+            // Show success message
+            Alert.alert('Success', 'Profile updated successfully');
+            return;
+          } else {
+            const errorText = await response.text();
+            console.error(`Backend error ${response.status}:`, errorText);
+            lastError = new Error(`Backend error: ${response.status} - ${errorText}`);
+          }
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            console.error(`Request timeout for ${endpoint}`);
+            lastError = new Error('Request timeout: Backend server not reachable');
+          } else {
+            console.error(`Error connecting to ${endpoint}:`, error);
+            lastError = error;
+          }
+          continue;
+        }
+      }
+      
+      // If we get here, all endpoints failed
+      Alert.alert(
+        'Error',
+        `Failed to update profile. ${lastError instanceof Error ? lastError.message : 'Unknown error'}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'An unexpected error occurred');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -303,7 +542,11 @@ export default function ProfileScreen() {
               <MaterialIcons name="account-circle" size={60} color="#4a7eb7" />
             </View>
             <View style={styles.userDetails}>
-              <Text style={styles.userName}>{(user?.email || 'Guest').split('@')[0]}</Text>
+              <Text style={styles.userName}>
+                {displayFirstName || displayLastName 
+                  ? `${displayFirstName} ${displayLastName}`.trim() 
+                  : (user?.email || 'Guest').split('@')[0]}
+              </Text>
               <Text style={styles.userEmail}>{user?.email || 'Not logged in'}</Text>
             </View>
           </View>
@@ -316,7 +559,10 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Account</Text>
           </View>
           
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={handleOpenEditProfile}
+          >
             <View style={styles.settingLeft}>
               <MaterialIcons name="edit" size={24} color="#666" />
               <Text style={styles.settingLabel}>Edit Profile</Text>
@@ -494,6 +740,127 @@ export default function ProfileScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.saveButtonText}>Change Password</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditProfileModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditProfileModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEditProfileModal(false);
+                  setFirstName('');
+                  setLastName('');
+                  setPhoneNumber('');
+                }}
+              >
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {isLoadingProfile ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#4a7eb7" />
+                  <Text style={styles.loadingText}>Loading profile...</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>First Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholder="Enter your first name"
+                      placeholderTextColor="#999"
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      editable={!isSavingProfile}
+                    />
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Last Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholder="Enter your last name"
+                      placeholderTextColor="#999"
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      editable={!isSavingProfile}
+                    />
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Phone Number</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={phoneNumber}
+                      onChangeText={setPhoneNumber}
+                      placeholder="Enter your phone number"
+                      placeholderTextColor="#999"
+                      keyboardType="phone-pad"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isSavingProfile}
+                    />
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Email Address</Text>
+                    <TextInput
+                      style={[styles.input, styles.disabledInput]}
+                      value={user?.email || ''}
+                      placeholder="Email address"
+                      placeholderTextColor="#999"
+                      editable={false}
+                    />
+                    <Text style={styles.inputHint}>Email cannot be changed</Text>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowEditProfileModal(false);
+                  setFirstName('');
+                  setLastName('');
+                  setPhoneNumber('');
+                }}
+                disabled={isSavingProfile || isLoadingProfile}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveProfile}
+                disabled={isSavingProfile || isLoadingProfile}
+              >
+                {isSavingProfile ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -880,5 +1247,19 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 22,
     marginBottom: 10,
+  },
+  disabledInput: {
+    backgroundColor: '#f0f0f0',
+    color: '#666',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
 });

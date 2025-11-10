@@ -318,10 +318,12 @@ export default function App() {
         } as any);
       }
       
+      const backendUrl = 'http://192.168.1.222';
+      
       console.log('Sending request to analyze recording...');
       console.log('User ID being sent:', user?.id);
       console.log('Audio file URI:', uri);
-      console.log('Target URL: ' + process.env.BACKEND_URL +':8000/analyze_sales_call');
+      console.log('Target URL:', `${backendUrl}:8000/analyze_sales_call`);
       
       const controller = new AbortController();
       timeoutId = setTimeout(() => {
@@ -335,9 +337,12 @@ export default function App() {
       console.log('- user_id:', user?.id);
       
       const endpoints = [
-        process.env.BACKEND_URL + `:8000/analyze_sales_call?user_id=${user?.id}`,
-        `http://localhost:8000/analyze_sales_call?user_id=${user?.id}`,
-        `http://127.0.0.1:8000/analyze_sales_call?user_id=${user?.id}`
+        `${backendUrl}:8000/analyze_sales_call?user_id=${user?.id}`,
+        // Only use localhost on web, not on mobile
+        ...(Platform.OS === 'web' ? [
+          `http://localhost:8000/analyze_sales_call?user_id=${user?.id}`,
+          `http://127.0.0.1:8000/analyze_sales_call?user_id=${user?.id}`
+        ] : [])
       ];
       
       let response;
@@ -424,7 +429,7 @@ export default function App() {
             onPress: () => {
               Alert.alert(
                 'Server Information',
-                'Make sure your backend server is running on:\n• IP: ' + process.env.BACKEND_URL + '\n• Port: 8000\n• Endpoint: /analyze_sales_call'
+                'Make sure your backend server is running on:\n• IP: 192.168.1.222\n• Port: 8000\n• Endpoint: /analyze_sales_call\n\nIf using mobile, ensure:\n• Same Wi-Fi network\n• Firewall allows port 8000\n• Backend server is running'
               );
             }
           }
