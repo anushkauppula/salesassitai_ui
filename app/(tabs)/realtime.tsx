@@ -771,15 +771,15 @@ export default function RealtimeAnalysisScreen() {
       <SafeAreaView style={styles.safeAreaTop} edges={['top']}>
         <View style={styles.fixedHeader}>
           <View style={styles.headerContent}>
+            <View style={styles.headerIcon}>
+              <MaterialIcons name="mic" size={32} color="#fff" />
+            </View>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>Real-Time Voice</Text>
               <View style={styles.headerSubtitleContainer}>
                 <View style={[styles.statusDot, { backgroundColor: getConnectionStatusColor() }]} />
                 <Text style={styles.headerSubtitle}>{getConnectionStatusText()}</Text>
               </View>
-            </View>
-            <View style={styles.headerIcon}>
-              <MaterialIcons name="mic" size={32} color="#fff" />
             </View>
           </View>
         </View>
@@ -796,7 +796,7 @@ export default function RealtimeAnalysisScreen() {
             <MaterialIcons name="mic" size={64} color="#006848" />
             <Text style={styles.emptyStateTitle}>Voice-to-Voice Analysis</Text>
             <Text style={styles.emptyStateText}>
-              Press and hold the microphone button to ask your sales questions. Get instant voice responses in real-time.
+              Press and hold the microphone button to ask your academic questions. Get instant voice responses in real-time.
             </Text>
             {!isConnected && (
               <View style={styles.connectionWarning}>
@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   headerTextContainer: {
     flex: 1,
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   headerIcon: {
-    marginLeft: 16,
+    marginRight: 16,
   },
   // Scrollable Body Styles
   scrollableBody: {

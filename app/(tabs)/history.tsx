@@ -12,12 +12,12 @@ export default function HistoryScreen() {
       {/* Fixed Header */}
       <View style={styles.fixedHeader}>
         <View style={styles.headerContent}>
+          <View style={styles.headerIcon}>
+            <MaterialIcons name="history" size={32} color="#fff" />
+          </View>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Recording History</Text>
             <Text style={styles.headerSubtitle}>{recordings.length} recordings saved</Text>
-          </View>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="history" size={32} color="#fff" />
           </View>
         </View>
       </View>
@@ -35,7 +35,7 @@ export default function HistoryScreen() {
             </View>
             <Text style={styles.emptyTitle}>No Recordings Yet</Text>
             <Text style={styles.emptyDescription}>
-              Start recording your sales calls to see them appear here. Your recordings will be saved automatically.
+              Start recording your academic calls to see them appear here. Your recordings will be saved automatically.
             </Text>
           </View>
         ) : (
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   headerTextContainer: {
     flex: 1,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   headerIcon: {
-    marginLeft: 16,
+    marginRight: 16,
   },
   // Scrollable Body Styles
   scrollableBody: {

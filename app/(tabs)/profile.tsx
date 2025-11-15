@@ -486,7 +486,7 @@ export default function ProfileScreen() {
 
   const handleHelpSupport = () => {
     const email = 'aipioneers@gmail.com';
-    const subject = encodeURIComponent('Support Request - Savant Sales AI');
+    const subject = encodeURIComponent('Support Request - Savant Academic AI');
     const body = encodeURIComponent(
       `Hello,\n\nI need help with the following issue:\n\n[Please describe your issue here]\n\nThank you!`
     );
@@ -519,12 +519,12 @@ export default function ProfileScreen() {
       {/* Fixed Header */}
       <View style={styles.fixedHeader}>
         <View style={styles.headerContent}>
+          <View style={styles.headerIcon}>
+            <MaterialIcons name="person" size={32} color="#fff" />
+          </View>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Profile</Text>
             <Text style={styles.headerSubtitle}>Manage your account settings</Text>
-          </View>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="person" size={32} color="#fff" />
           </View>
         </View>
       </View>
@@ -895,7 +895,7 @@ export default function ProfileScreen() {
                 {'\n\n'}
                 • Account information (email address, password)
                 {'\n'}
-                • Audio recordings of sales calls that you choose to record
+                • Audio recordings of academic calls that you choose to record
                 {'\n'}
                 • Usage data and analytics to improve our services
               </Text>
@@ -906,7 +906,7 @@ export default function ProfileScreen() {
                 {'\n\n'}
                 • Provide, maintain, and improve our services
                 {'\n'}
-                • Process and analyze your sales call recordings
+                • Process and analyze your academic call recordings
                 {'\n'}
                 • Send you technical notices and support messages
                 {'\n'}
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   headerTextContainer: {
     flex: 1,
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   headerIcon: {
-    marginLeft: 16,
+    marginRight: 16,
   },
   // Scrollable Body Styles
   scrollableBody: {

@@ -446,12 +446,11 @@ export default function App() {
       {/* Fixed Header */}
       <View style={styles.fixedHeader}>
         <View style={styles.headerContent}>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>AI Sales Assistant</Text>
-            <Text style={styles.headerSubtitle}>Transform conversations with AI insights</Text>
-          </View>
           <View style={styles.headerIcon}>
             <MaterialIcons name="psychology" size={32} color="#fff" />
+          </View>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Conversation Analysis</Text>
           </View>
         </View>
       </View>
@@ -466,10 +465,10 @@ export default function App() {
         <View style={styles.welcomeCard}>
           <View style={styles.welcomeHeader}>
             <MaterialIcons name="mic" size={28} color="#006848" />
-            <Text style={styles.welcomeTitle}>Record Your Sales Call</Text>
+            <Text style={styles.welcomeTitle}>Record Your Conversation</Text>
           </View>
           <Text style={styles.welcomeDescription}>
-            Capture your sales conversations and get instant AI-powered analysis to improve your performance
+            Capture your academic conversations and get instant AI-powered analysis to improve your performance
           </Text>
         </View>
 
@@ -586,7 +585,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   headerTextContainer: {
     flex: 1,
@@ -603,7 +602,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   headerIcon: {
-    marginLeft: 16,
+    marginRight: 16,
   },
   // Scrollable Body Styles
   scrollableBody: {
