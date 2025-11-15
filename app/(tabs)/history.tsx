@@ -31,7 +31,7 @@ export default function HistoryScreen() {
         {recordings.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <MaterialIcons name="mic-off" size={64} color="#4a7eb7" />
+              <MaterialIcons name="mic-off" size={64} color="#006848" />
             </View>
             <Text style={styles.emptyTitle}>No Recordings Yet</Text>
             <Text style={styles.emptyDescription}>
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   },
   // Fixed Header Styles
   fixedHeader: {
-    backgroundColor: '#4a7eb7',
+    backgroundColor: '#006848',
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#E3F2FD',
+    color: '#E8F5F0',
     lineHeight: 18,
   },
   headerIcon: {
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#E8F5F0',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,

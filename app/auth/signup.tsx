@@ -27,7 +27,7 @@ export default function SignupScreen() {
   const { signUp } = useAuth();
 
   const saveUserDetailsToBackend = async (userId: string, firstName: string, lastName: string, phoneNumber: string, email: string) => {
-    const backendUrl = 'http://192.168.1.222';
+    const backendUrl = 'http://192.168.1.146';
     
     const endpoints = [
       `${backendUrl}:8000/user_details`,
@@ -217,12 +217,13 @@ export default function SignupScreen() {
           <View style={styles.content}>
           <View style={styles.logoContainer}>
             <Image 
-              source={require('../../logo.png')} 
+              source={require('../../northlogo.png')} 
               style={styles.logo}
               resizeMode="contain"
               onError={(error) => console.log('Image load error:', error)}
               onLoad={() => console.log('Image loaded successfully')}
             />
+            <Text style={styles.logoText}>AI Assistant for Major Exploration</Text>
           </View>
 
           <View style={styles.form}>
@@ -337,7 +338,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#4a7eb7',
+    backgroundColor: '#006848',
   },
   keyboardView: {
     flex: 1,
@@ -361,10 +362,12 @@ const styles = StyleSheet.create({
     height: 200,
   },
   logoText: {
-    color: '#fff',
-    fontSize: 18,
+    color: '#E8F5F0',
+    fontSize: 23,
     fontWeight: 'bold',
     marginTop: 10,
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   title: {
     fontSize: 32,
@@ -375,7 +378,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#E3F2FD',
+    color: '#E8F5F0',
     textAlign: 'center',
     marginBottom: 40,
   },
@@ -402,7 +405,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   signupButton: {
-    backgroundColor: '#4a7eb7',
+    backgroundColor: '#006848',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -423,7 +426,7 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 16,
-    color: '#E3F2FD',
+    color: '#E8F5F0',
   },
   loginLink: {
     fontSize: 16,

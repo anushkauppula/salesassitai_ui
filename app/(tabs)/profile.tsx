@@ -2,18 +2,18 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -56,7 +56,7 @@ export default function ProfileScreen() {
     }
     
     try {
-      const backendUrl = 'http://192.168.1.222';
+      const backendUrl = 'http://192.168.1.146';
       
       const endpoints = [
         `${backendUrl}:8000/user_details/${user.id}`,
@@ -181,7 +181,7 @@ export default function ProfileScreen() {
 
     setIsSavingProfile(true);
     try {
-      const backendUrl = 'http://192.168.1.222';
+      const backendUrl = 'http://192.168.1.146';
       
       const endpoints = [
         `${backendUrl}:8000/user_details/update`,
@@ -539,7 +539,7 @@ export default function ProfileScreen() {
         <View style={styles.userCard}>
           <View style={styles.userInfo}>
             <View style={styles.avatarContainer}>
-              <MaterialIcons name="account-circle" size={60} color="#4a7eb7" />
+              <MaterialIcons name="account-circle" size={60} color="#006848" />
             </View>
             <View style={styles.userDetails}>
               <Text style={styles.userName}>
@@ -555,7 +555,7 @@ export default function ProfileScreen() {
         {/* Account Section */}
         <View style={styles.accountCard}>
           <View style={styles.sectionHeader}>
-            <MaterialIcons name="account-box" size={20} color="#4a7eb7" />
+            <MaterialIcons name="account-box" size={20} color="#006848" />
             <Text style={styles.sectionTitle}>Account</Text>
           </View>
           
@@ -585,7 +585,7 @@ export default function ProfileScreen() {
         {/* Support Section */}
         <View style={styles.supportCard}>
           <View style={styles.sectionHeader}>
-            <MaterialIcons name="help" size={20} color="#4a7eb7" />
+            <MaterialIcons name="help" size={20} color="#006848" />
             <Text style={styles.sectionTitle}>Support</Text>
           </View>
           
@@ -776,7 +776,7 @@ export default function ProfileScreen() {
             <ScrollView style={styles.modalBody}>
               {isLoadingProfile ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#4a7eb7" />
+                  <ActivityIndicator size="large" color="#006848" />
                   <Text style={styles.loadingText}>Loading profile...</Text>
                 </View>
               ) : (
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
   },
   // Fixed Header Styles
   fixedHeader: {
-    backgroundColor: '#4a7eb7',
+    backgroundColor: '#006848',
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -1015,7 +1015,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#E3F2FD',
+    color: '#E8F5F0',
     lineHeight: 18,
   },
   headerIcon: {
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#4a7eb7',
+    backgroundColor: '#006848',
   },
   saveButtonText: {
     color: '#fff',

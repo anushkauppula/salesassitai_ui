@@ -318,7 +318,7 @@ export default function App() {
         } as any);
       }
       
-      const backendUrl = 'http://192.168.1.222';
+      const backendUrl = 'http://192.168.1.146';
       
       console.log('Sending request to analyze recording...');
       console.log('User ID being sent:', user?.id);
@@ -465,7 +465,7 @@ export default function App() {
         {/* Welcome Card */}
         <View style={styles.welcomeCard}>
           <View style={styles.welcomeHeader}>
-            <MaterialIcons name="mic" size={28} color="#4a7eb7" />
+            <MaterialIcons name="mic" size={28} color="#006848" />
             <Text style={styles.welcomeTitle}>Record Your Sales Call</Text>
           </View>
           <Text style={styles.welcomeDescription}>
@@ -519,7 +519,7 @@ export default function App() {
 
           {isLoading && (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#4a7eb7" />
+              <ActivityIndicator size="large" color="#006848" />
               <Text style={styles.loadingText}>AI is analyzing your recording...</Text>
             </View>
           )}
@@ -538,9 +538,9 @@ export default function App() {
                   <MaterialIcons 
                     name={isSpeaking ? "stop" : "volume-up"} 
                     size={20} 
-                    color={isSpeaking ? "#f44336" : "#4a7eb7"} 
+                    color={isSpeaking ? "#f44336" : "#006848"} 
                   />
-                  <Text style={[styles.speechButtonText, { color: isSpeaking ? "#f44336" : "#4a7eb7" }]}>
+                  <Text style={[styles.speechButtonText, { color: isSpeaking ? "#f44336" : "#006848" }]}>
                     {isSpeaking ? "Stop" : "Listen"}
                   </Text>
                 </Pressable>
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   },
   // Fixed Header Styles
   fixedHeader: {
-    backgroundColor: '#4a7eb7',
+    backgroundColor: '#006848',
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#E3F2FD',
+    color: '#E8F5F0',
     lineHeight: 18,
   },
   headerIcon: {
@@ -696,7 +696,7 @@ const styles = StyleSheet.create({
   },
   playButton: {
     flexDirection: 'row',
-    backgroundColor: '#2196f3',
+    backgroundColor: '#006848',
     padding: 16,
     borderRadius: 50,
     alignItems: 'center',
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#4a7eb7',
+    color: '#006848',
     fontWeight: '500',
   },
   // Analysis Card
@@ -781,12 +781,12 @@ const styles = StyleSheet.create({
   speechButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#E8F5F0',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#4a7eb7',
+    borderColor: '#006848',
   },
   speakingButton: {
     backgroundColor: '#FFEBEE',
