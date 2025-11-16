@@ -144,14 +144,12 @@ export default function RealtimeAnalysisScreen() {
             const audioUrl = URL.createObjectURL(event.data);
             await playAudioResponse(audioUrl);
             
-            // Add message indicating audio was received
-            const audioMessage: Message = {
-              id: Date.now().toString(),
-              text: '🔊 Audio response received',
-              isUser: false,
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, audioMessage]);
+            // Remove "Sending..." and "Processing..." messages without adding audio message
+            setMessages((prev) => {
+              return prev.filter(
+                (msg) => msg.text !== '📤 Sending audio...' && msg.text !== '⏳ Processing audio...'
+              );
+            });
           } else if (typeof event.data === 'string') {
             // Handle JSON messages
             let data;
@@ -209,19 +207,11 @@ export default function RealtimeAnalysisScreen() {
                 await playAudioFromBase64(data.audio_base64);
               }
               
-              // Add message indicating audio was received
+              // Remove "Sending..." and "Processing..." messages without adding audio message
               setMessages((prev) => {
-                // Remove "Sending..." and "Processing..." messages
-                const filtered = prev.filter(
+                return prev.filter(
                   (msg) => msg.text !== '📤 Sending audio...' && msg.text !== '⏳ Processing audio...'
                 );
-                const audioMessage: Message = {
-                  id: Date.now().toString(),
-                  text: '🔊 Playing audio response...',
-                  isUser: false,
-                  timestamp: new Date(),
-                };
-                return [...filtered, audioMessage];
               });
             }
             
@@ -961,7 +951,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 20, // Reduced since controls are fixed
+    paddingBottom: Platform.OS === 'ios' ? 180 : 150, // Extra padding for fixed controls + tab bar
   },
   // Empty State Card
   emptyStateCard: {
@@ -1097,7 +1087,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 90 : 20, // Extra padding for tab bar on iOS
+    paddingBottom: Platform.OS === 'ios' ? 10 : 10,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
