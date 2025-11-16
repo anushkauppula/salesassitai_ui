@@ -1020,6 +1020,10 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     marginRight: 16,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Scrollable Body Styles
   scrollableBody: {

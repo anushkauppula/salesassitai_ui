@@ -715,18 +715,34 @@ export default function RealtimeAnalysisScreen() {
   };
 
   const clearChat = () => {
-    Alert.alert(
-      'Clear Chat',
-      'Are you sure you want to clear all messages?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => setMessages([]),
-        },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      // On web, clear directly without confirmation for better UX
+      setMessages([]);
+      // Scroll to top after clearing
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 100);
+    } else {
+      // On mobile, show confirmation dialog
+      Alert.alert(
+        'Clear Chat',
+        'Are you sure you want to clear all messages?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: () => {
+              setMessages([]);
+              // Scroll to top after clearing
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+              }, 100);
+            },
+          },
+        ]
+      );
+    }
   };
 
   const formatTime = (date: Date) => {
@@ -762,10 +778,10 @@ export default function RealtimeAnalysisScreen() {
         <View style={styles.fixedHeader}>
           <View style={styles.headerContent}>
             <View style={styles.headerIcon}>
-              <MaterialIcons name="mic" size={32} color="#fff" />
+              <MaterialIcons name="help" size={32} color="#fff" />
             </View>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>Real-Time Voice</Text>
+              <Text style={styles.headerTitle}>Ask Questions to AI</Text>
               <View style={styles.headerSubtitleContainer}>
                 <View style={[styles.statusDot, { backgroundColor: getConnectionStatusColor() }]} />
                 <Text style={styles.headerSubtitle}>{getConnectionStatusText()}</Text>
@@ -784,7 +800,7 @@ export default function RealtimeAnalysisScreen() {
         {messages.length === 0 ? (
           <View style={styles.emptyStateCard}>
             <MaterialIcons name="mic" size={64} color="#006848" />
-            <Text style={styles.emptyStateTitle}>Voice-to-Voice Analysis</Text>
+            <Text style={styles.emptyStateTitle}>Voice-to-Voice</Text>
             <Text style={styles.emptyStateText}>
               Press and hold the microphone button to ask your academic questions. Get instant voice responses in real-time.
             </Text>
@@ -944,6 +960,10 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     marginRight: 16,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Scrollable Body Styles
   scrollableBody: {

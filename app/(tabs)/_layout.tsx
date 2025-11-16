@@ -50,7 +50,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="realtime"
         options={{
-          title: 'Real-Time',
+          title: 'Ask AI',
           tabBarIcon: ({ color, focused }) => (
             <IconSymbol size={focused ? 30 : 26} name="message.fill" color={color} />
           ),
