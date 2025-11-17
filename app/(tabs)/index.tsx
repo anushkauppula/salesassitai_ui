@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams } from 'expo-router';
-import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
@@ -18,9 +18,12 @@ export default function App() {
   const [isSending, setIsSending] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [audioBase64, setAudioBase64] = useState<string | null>(null);
+  const [audioFormat, setAudioFormat] = useState<string | null>(null);
   const [currentRecordingTitle, setCurrentRecordingTitle] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [analysisSound, setAnalysisSound] = useState<Audio.Sound | null>(null);
 
   useEffect(() => {
     if (params.recordingUri) {
@@ -35,12 +38,11 @@ export default function App() {
       if (sound) {
         sound.unloadAsync();
       }
-      // Stop any ongoing speech when component unmounts
-      if (isSpeaking) {
-        Speech.stop();
+      if (analysisSound) {
+        analysisSound.unloadAsync();
       }
     };
-  }, [sound, isSpeaking]);
+  }, [sound, analysisSound]);
 
   const startRecording = async () => {
     try {
@@ -54,12 +56,19 @@ export default function App() {
       setCurrentRecordingTitle(null);
       setTranscription(null);
       setAnalysis(null);
+      setAudioBase64(null);
+      setAudioFormat(null);
       setRecordedURI(null);
       if (sound) {
         await sound.unloadAsync();
         setSound(null);
       }
+      if (analysisSound) {
+        await analysisSound.unloadAsync();
+        setAnalysisSound(null);
+      }
       setIsPlaying(false);
+      setIsSpeaking(false);
 
       // Set audio mode (skip platform-specific options on web)
       if (Platform.OS !== 'web') {
@@ -162,121 +171,144 @@ export default function App() {
     }
   };
 
-  const speakAnalysis = async () => {
-    if (!analysis) return;
-    
+  const playAudioFromBase64 = async (base64: string) => {
     try {
-      if (isSpeaking) {
-        // Stop current speech
-        Speech.stop();
-        setIsSpeaking(false);
-      } else {
-        // Start speaking
-        setIsSpeaking(true);
-        
-        // Clean up the text for better speech
-        const cleanText = analysis
-          .replace(/\*\*/g, '') // Remove markdown bold
-          .replace(/\*/g, '') // Remove markdown italic
-          .replace(/#/g, '') // Remove markdown headers
-          .replace(/\n\n/g, '. ') // Replace double newlines with periods
-          .replace(/\n/g, ' ') // Replace single newlines with spaces
-          .trim();
-        
-        // Try multiple approaches to force speaker output (skip on web)
-        if (Platform.OS !== 'web') {
-          try {
-            // Approach 1: Set audio mode for speaker output
-            await Audio.setAudioModeAsync({
-              allowsRecordingIOS: false,
-              playsInSilentModeIOS: true,
-              staysActiveInBackground: false,
-              shouldDuckAndroid: true,
-              playThroughEarpieceAndroid: false,
-              interruptionModeAndroid: 1,
-              interruptionModeIOS: 1,
-            });
-            
-            // Wait for audio mode to be set
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Approach 2: Try with different audio session settings
-            await Audio.setAudioModeAsync({
-              allowsRecordingIOS: false,
-              playsInSilentModeIOS: true,
-              staysActiveInBackground: false,
-              shouldDuckAndroid: true,
-              playThroughEarpieceAndroid: false,
-              interruptionModeAndroid: 1,
-              interruptionModeIOS: 1,
-            });
-            
-            // Additional wait
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-          } catch (audioError) {
-            console.log('Audio mode setting failed:', audioError);
-          }
+      // Remove data URL prefix if present
+      const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+      
+      let audioUrl: string;
+      
+      if (Platform.OS === 'web') {
+        // For web, convert to blob URL
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
-        
-        // Try speech with multiple configurations
+        const byteArray = new Uint8Array(byteNumbers);
+        const mimeType = audioFormat === 'mp3' ? 'audio/mpeg' : 'audio/mpeg';
+        const blob = new Blob([byteArray], { type: mimeType });
+        audioUrl = URL.createObjectURL(blob);
+      } else {
+        // For mobile, save to file system and play
+        const fileUri = `${FileSystem.cacheDirectory}analysis_audio_${Date.now()}.${audioFormat || 'mp3'}`;
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        audioUrl = fileUri;
+      }
+      
+      await playAnalysisAudio(audioUrl);
+    } catch (error) {
+      console.error('Error playing audio from base64:', error);
+      setIsSpeaking(false);
+      Alert.alert('Audio Error', 'Unable to play the audio response. Please try again.');
+    }
+  };
+
+  const playAnalysisAudio = async (audioUrl: string) => {
+    try {
+      // Stop any currently playing analysis audio
+      if (analysisSound) {
         try {
-          await Speech.speak(cleanText, {
-            language: 'en-US',
-            pitch: 1.0,
-            rate: 0.8,
-            onStart: () => {
-              console.log('Speech started - should be through speaker');
-            },
-            onDone: () => {
-              setIsSpeaking(false);
-              // Restore audio mode for recording (skip on web)
-              if (Platform.OS !== 'web') {
-                Audio.setAudioModeAsync({
-                  allowsRecordingIOS: true,
-                  playsInSilentModeIOS: true,
-                  staysActiveInBackground: true,
-                  shouldDuckAndroid: true,
-                }).catch(() => {});
-              }
-            },
-            onStopped: () => {
-              setIsSpeaking(false);
-              // Restore audio mode for recording (skip on web)
-              if (Platform.OS !== 'web') {
-                Audio.setAudioModeAsync({
-                  allowsRecordingIOS: true,
-                  playsInSilentModeIOS: true,
-                  staysActiveInBackground: true,
-                  shouldDuckAndroid: true,
-                }).catch(() => {});
-              }
-            },
-            onError: (error) => {
-              console.error('Speech error:', error);
-              setIsSpeaking(false);
-              // Restore audio mode for recording (skip on web)
-              if (Platform.OS !== 'web') {
-                Audio.setAudioModeAsync({
-                  allowsRecordingIOS: true,
-                  playsInSilentModeIOS: true,
-                  staysActiveInBackground: true,
-                  shouldDuckAndroid: true,
-                }).catch(() => {});
-              }
-              Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
-            }
+          await analysisSound.unloadAsync();
+        } catch (e) {
+          console.log('Error unloading previous analysis sound:', e);
+        }
+        setAnalysisSound(null);
+      }
+
+      setIsSpeaking(true);
+
+      // Set audio mode for playback
+      if (Platform.OS !== 'web') {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+            interruptionModeAndroid: 1,
+            interruptionModeIOS: 1,
           });
-        } catch (speechError) {
-          console.error('Speech failed:', speechError);
-          setIsSpeaking(false);
-          Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
+        } catch (e) {
+          console.log('Error setting audio mode:', e);
         }
       }
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        { shouldPlay: true }
+      );
+
+      setAnalysisSound(newSound);
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) {
+          if (status.didJustFinish) {
+            setIsSpeaking(false);
+            newSound.unloadAsync().catch(console.error);
+            setAnalysisSound(null);
+            // Restore audio mode for recording (skip on web)
+            if (Platform.OS !== 'web') {
+              Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: true,
+                shouldDuckAndroid: true,
+              }).catch(() => {});
+            }
+          }
+        } else if ('error' in status) {
+          console.error('Playback error:', status.error);
+          setIsSpeaking(false);
+          setAnalysisSound(null);
+          Alert.alert('Audio Error', 'Unable to play the audio response. Please try again.');
+        }
+      });
     } catch (error) {
-      console.error('Speech error:', error);
+      console.error('Error playing analysis audio:', error);
       setIsSpeaking(false);
-      Alert.alert('Speech Error', 'Unable to read the analysis aloud. Please try again.');
+      setAnalysisSound(null);
+      Alert.alert('Audio Error', 'Unable to play the audio response. Please try again.');
+    }
+  };
+
+  const speakAnalysis = async () => {
+    if (!audioBase64) {
+      Alert.alert('No Audio', 'Audio response is not available. Please analyze the recording again.');
+      return;
+    }
+    
+    try {
+      if (isSpeaking && analysisSound) {
+        // Stop current audio playback
+        try {
+          await analysisSound.pauseAsync();
+          await analysisSound.unloadAsync();
+          setAnalysisSound(null);
+        } catch (e) {
+          console.log('Error stopping audio:', e);
+        }
+        setIsSpeaking(false);
+        // Restore audio mode for recording (skip on web)
+        if (Platform.OS !== 'web') {
+          Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: true,
+            shouldDuckAndroid: true,
+          }).catch(() => {});
+        }
+      } else {
+        // Start playing audio
+        await playAudioFromBase64(audioBase64);
+      }
+    } catch (error) {
+      console.error('Error in speakAnalysis:', error);
+      setIsSpeaking(false);
+      Alert.alert('Audio Error', 'Unable to play the audio response. Please try again.');
     }
   };
 
@@ -290,6 +322,18 @@ export default function App() {
       setIsSending(true);
       setTranscription(null);
       setAnalysis(null);
+      setAudioBase64(null);
+      setAudioFormat(null);
+      // Stop any playing analysis audio
+      if (analysisSound) {
+        try {
+          await analysisSound.unloadAsync();
+          setAnalysisSound(null);
+        } catch (e) {
+          console.log('Error unloading analysis sound:', e);
+        }
+      }
+      setIsSpeaking(false);
 
       const formData = new FormData();
       
@@ -394,6 +438,8 @@ export default function App() {
       console.log('Analysis completed successfully for user:', user?.id);
       console.log('Transcription length:', data.transcription?.length || 0);
       console.log('Analysis length:', data.analysis?.length || 0);
+      console.log('Audio base64 present:', !!data.audio_base64);
+      console.log('Audio format:', data.audio_format);
       
       if (!data.transcription || !data.analysis) {
         throw new Error('Invalid response format from server');
@@ -401,6 +447,12 @@ export default function App() {
 
       setTranscription(data.transcription);
       setAnalysis(data.analysis);
+      
+      // Store audio response if available
+      if (data.audio_base64) {
+        setAudioBase64(data.audio_base64);
+        setAudioFormat(data.audio_format || 'mp3');
+      }
     } catch (error) {
       console.error('Error sending audio:', error);
       
@@ -533,26 +585,39 @@ export default function App() {
                 <Text style={styles.analysisTitle}>AI Analysis</Text>
               </View>
               <View style={styles.speechControls}>
-                <Pressable style={[styles.speechButton, isSpeaking && styles.speakingButton]} onPress={speakAnalysis}>
+                <Pressable 
+                  style={[
+                    styles.speechButton, 
+                    isSpeaking && styles.speakingButton,
+                    !audioBase64 && styles.disabledButton
+                  ]} 
+                  onPress={speakAnalysis}
+                  disabled={!audioBase64 && !isSpeaking}
+                >
                   <MaterialIcons 
                     name={isSpeaking ? "stop" : "volume-up"} 
                     size={20} 
-                    color={isSpeaking ? "#f44336" : "#006848"} 
+                    color={isSpeaking ? "#f44336" : (!audioBase64 ? "#999" : "#006848")} 
                   />
-                  <Text style={[styles.speechButtonText, { color: isSpeaking ? "#f44336" : "#006848" }]}>
+                  <Text style={[
+                    styles.speechButtonText, 
+                    { color: isSpeaking ? "#f44336" : (!audioBase64 ? "#999" : "#006848") }
+                  ]}>
                     {isSpeaking ? "Stop" : "Listen"}
                   </Text>
                 </Pressable>
                 
-                <Pressable style={styles.speakerHintButton} onPress={() => {
-                  Alert.alert(
-                    'Speaker Output Issue',
-                    'If you can only hear through the earpiece:\n\n1. Check device volume is up\n2. Make sure device is not on silent mode\n3. Try using headphones or external speaker\n4. Check device audio settings\n\nThis is a known limitation with some devices.',
-                    [{ text: 'OK' }]
-                  );
-                }}>
-                  <MaterialIcons name="help-outline" size={16} color="#666" />
-                </Pressable>
+                {!audioBase64 && (
+                  <Pressable style={styles.speakerHintButton} onPress={() => {
+                    Alert.alert(
+                      'No Audio Available',
+                      'Audio response is not available for this analysis. Please analyze the recording again.',
+                      [{ text: 'OK' }]
+                    );
+                  }}>
+                    <MaterialIcons name="help-outline" size={16} color="#666" />
+                  </Pressable>
+                )}
               </View>
             </View>
             <ScrollView style={styles.analysisScrollArea}>
@@ -790,6 +855,11 @@ const styles = StyleSheet.create({
   speakingButton: {
     backgroundColor: '#FFEBEE',
     borderColor: '#f44336',
+  },
+  disabledButton: {
+    opacity: 0.5,
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E0E0E0',
   },
   speechButtonText: {
     fontSize: 14,

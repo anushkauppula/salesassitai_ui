@@ -23,6 +23,11 @@ interface Message {
   audioUri?: string;
 }
 
+// Helper function to generate unique message IDs
+const generateMessageId = (): string => {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+};
+
 export default function RealtimeAnalysisScreen() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -181,7 +186,7 @@ export default function RealtimeAnalysisScreen() {
               setMessages((prev) => {
                 const filtered = prev.filter((msg) => msg.text !== '📤 Sending audio...');
                 const processingMessage: Message = {
-                  id: Date.now().toString(),
+                  id: generateMessageId(),
                   text: '⏳ Processing audio...',
                   isUser: false,
                   timestamp: new Date(),
@@ -228,7 +233,7 @@ export default function RealtimeAnalysisScreen() {
                   (msg) => msg.text !== '📤 Sending audio...' && msg.text !== '⏳ Processing audio...'
                 );
                 const transcriptionMessage: Message = {
-                  id: Date.now().toString(),
+                  id: generateMessageId(),
                   text: transcriptionText,
                   isUser: false,
                   timestamp: new Date(),
@@ -250,7 +255,7 @@ export default function RealtimeAnalysisScreen() {
                 );
                 const answerText = data.answer || data.response || data.message || '';
                 const answerMessage: Message = {
-                  id: Date.now().toString(),
+                  id: generateMessageId(),
                   text: answerText,
                   isUser: false,
                   timestamp: new Date(),
@@ -267,7 +272,7 @@ export default function RealtimeAnalysisScreen() {
               setMessages((prev) => {
                 const filtered = prev.filter((msg) => msg.text !== '📤 Sending audio...');
                 const errorMessage: Message = {
-                  id: Date.now().toString(),
+                  id: generateMessageId(),
                   text: `Error: ${data.message || 'Unknown error'}`,
                   isUser: false,
                   timestamp: new Date(),
@@ -294,7 +299,7 @@ export default function RealtimeAnalysisScreen() {
                   const filtered = prev.filter((msg) => msg.text !== '📤 Sending audio...');
                   
                   const genericMessage: Message = {
-                    id: Date.now().toString(),
+                    id: generateMessageId(),
                     text: data.message,
                     isUser: false,
                     timestamp: new Date(),
@@ -314,7 +319,7 @@ export default function RealtimeAnalysisScreen() {
                 // Try to extract meaningful message
                 const messageText = data.message || data.text || JSON.stringify(data);
                 const fallbackMessage: Message = {
-                  id: Date.now().toString(),
+                  id: generateMessageId(),
                   text: messageText,
                   isUser: false,
                   timestamp: new Date(),
@@ -330,7 +335,7 @@ export default function RealtimeAnalysisScreen() {
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
           const errorMessage: Message = {
-            id: Date.now().toString(),
+            id: generateMessageId(),
             text: `Error processing message: ${error instanceof Error ? error.message : 'Unknown error'}`,
             isUser: false,
             timestamp: new Date(),
@@ -347,7 +352,7 @@ export default function RealtimeAnalysisScreen() {
         // Show error message to user
         setMessages((prev) => {
           const errorMessage: Message = {
-            id: Date.now().toString(),
+            id: generateMessageId(),
             text: `Connection error: Unable to connect to test_pinecone endpoint. Please check if the server is running.`,
             isUser: false,
             timestamp: new Date(),
@@ -384,7 +389,7 @@ export default function RealtimeAnalysisScreen() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setMessages((prev) => {
         const msg: Message = {
-          id: Date.now().toString(),
+          id: generateMessageId(),
           text: `Failed to connect: ${errorMessage}. Please check if the server is running at ${backendUrl}/test_pinecone`,
           isUser: false,
           timestamp: new Date(),
@@ -529,7 +534,7 @@ export default function RealtimeAnalysisScreen() {
 
       // Add user message indicating recording started
       const recordingMessage: Message = {
-        id: Date.now().toString(),
+        id: generateMessageId(),
         text: '🎤 Recording...',
         isUser: true,
         timestamp: new Date(),
@@ -585,7 +590,7 @@ export default function RealtimeAnalysisScreen() {
       setMessages((prev) => {
         const filtered = prev.filter((msg) => msg.text !== '🎤 Recording...');
         const sendingMessage: Message = {
-          id: Date.now().toString(),
+          id: generateMessageId(),
           text: '📤 Sending audio...',
           isUser: true,
           timestamp: new Date(),
@@ -686,7 +691,7 @@ export default function RealtimeAnalysisScreen() {
         setMessages((prev) => {
           const filtered = prev.filter((msg) => msg.text !== '📤 Sending audio...');
           const errorMessage: Message = {
-            id: Date.now().toString(),
+            id: generateMessageId(),
             text: `Error: ${error?.message || 'Failed to send audio'}`,
             isUser: false,
             timestamp: new Date(),
